@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>狼人杀 - 游戏中</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 10px;
+            color: #333;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        .status-bar {
+            background: #fff;
+            border-radius: 12px;
+            padding: 10px 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .round-info {
+            font-size: 14px;
+        }
+        .round-info span {
+            color: #1890ff;
+            font-weight: bold;
+        }
+        .alive-status {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+        .alive-status.alive { background: #f6ffed; color: #52c41a; }
+        .alive-status.dead { background: #fff1f0; color: #ff4d4f; }
+        
+        .role-card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            margin-bottom: 10px;
+            border: 2px solid #e8e8e8;
+        }
+        .role-card.werewolf { border-color: #ff4d4f; }
+        .role-card.god { border-color: #52c41a; }
+        .role-card.villager { border-color: #faad14; }
+        
+        .role-content {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .role-icon { font-size: 32px; }
+        .role-info { text-align: left; }
+        .role-name { font-size: 18px; font-weight: bold; }
+        .role-team { font-size: 11px; color: #666; }
+        
+        .countdown-banner {
+            background: #fff1f0;
+            border: 2px solid #ff4d4f;
+            border-radius: 12px;
+            padding: 12px;
+            text-align: center;
+            margin-bottom: 10px;
+            display: none;
+        }
+        .countdown-banner.active { display: block; }
+        .countdown-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: #ff4d4f;
+        }
+        .countdown-text { color: #999; font-size: 11px; }
+        
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 10px;
+        }
+        .card-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .card-hint {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+        
+        .players-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: flex-start;
+        }
+        .player-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            background: #f0f0f0;
+            border: 2px solid #d9d9d9;
+            position: relative;
+            transition: all 0.2s;
+        }
+        .player-avatar.dead {
+            opacity: 0.4;
+            background: #f5f5f5 !important;
+            border-color: #d9d9d9 !important;
+        }
+        .player-avatar.self {
+            border-width: 3px;
+            box-shadow: 0 0 0 2px #1890ff;
+        }
+        .player-avatar.can-vote { cursor: pointer; }
+        .player-avatar.can-vote:active { transform: scale(0.95); }
+        .player-avatar.selected {
+            background: #1890ff !important;
+            color: white !important;
+            border-color: #1890ff !important;
+        }
+        
+        .confirm-btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: #faad14;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .abstain-btn:disabled {
+            background: #d9d9d9;
+            color: #999;
+            cursor: not-allowed;
+        }
+        
+        .confirm-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            background: #ff4d4f;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .confirm-btn:disabled {
+            background: #d9d9d9;
+            color: #999;
+            cursor: not-allowed;
+        }
+        
+        .message {
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        .message.success { background: #f6ffed; color: #52c41a; }
+        .message.error { background: #fff1f0; color: #ff4d4f; }
+        
+        /* 投票结果滑动区域 */
+        .vote-slider-container {
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            display: flex;
+            gap: 10px;
+        }
+        .vote-slider-container::-webkit-scrollbar {
+            display: none;
+        }
+        .vote-day-card {
+            min-width: 100%;
+            scroll-snap-align: start;
+            flex-shrink: 0;
+        }
+        .vote-day-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        .vote-day-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1890ff;
+        }
+        .vote-day-dots {
+            display: flex;
+            gap: 6px;
+        }
+        .vote-day-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #d9d9d9;
+        }
+        .vote-day-dot.active {
+            background: #1890ff;
+        }
+        
+        .vote-results-box {
+            max-height: 180px;
+            overflow-y: auto;
+        }
+        .vote-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            gap: 5px;
+        }
+        .vote-avatar-sm {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            background: #f0f0f0;
+            border: 2px solid #d9d9d9;
+        }
+        .vote-arrow { color: #999; font-size: 14px; }
+        .vote-target-sm {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            background: #e6f7ff;
+            border: 2px solid #1890ff;
+        }
+        
+        .waiting-text {
+            color: #999;
+            text-align: center;
+            padding: 15px;
+            font-size: 12px;
+        }
+        
+        .no-vote-text {
+            color: #999;
+            text-align: center;
+            padding: 20px;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status-bar">
+            <div class="round-info">第 <span id="day-number">{{ game.current_day }}</span> 天</div>
+            <div class="alive-status {% if player.alive %}alive{% else %}dead{% endif %}" id="alive-status">
+                {% if player.alive %}存活{% else %}已出局{% endif %}
+            </div>
+        </div>
+        
+        <div class="role-card {{ player.team }}">
+            <div class="role-content">
+                <div class="role-icon">{{ player.role_icon }}</div>
+                <div class="role-info">
+                    <div class="role-name">{{ player.role_name }}</div>
+                    <div class="role-team">
+                        {% if player.team == 'werewolf' %}狼人阵营{% endif %}
+                        {% if player.team == 'god' %}神职阵营{% endif %}
+                        {% if player.team == 'villager' %}平民阵营{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="countdown-section" class="countdown-banner">
+            <div class="countdown-number" id="countdown-number">10</div>
+            <div class="countdown-text" id="countdown-mode">选择玩家后点击确认投票</div>
+            <div id="pk-targets" style="margin-top:10px;font-size:12px;color:#722ed1;"></div>
+        </div>
+        
+        <div id="message-area"></div>
+        
+        <div class="card">
+            <div class="card-title">👥 所有玩家</div>
+            <p class="card-hint" id="players-hint"></p>
+            <div class="players-row" id="players-row"></div>
+            <button class="confirm-btn" id="confirm-btn" onclick="confirmVote()" disabled style="display:none;">确认投票</button>
+            <button class="abstain-btn" id="abstain-btn" onclick="abstainVote()" style="display:none;">弃票</button>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">📊 投票结果</div>
+            <div id="results-container" class="vote-slider-container">
+                <p class="waiting-text">等待投票结束...</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const roomId = '{{ game.room_id }}';
+        const secretKey = '{{ player.key }}';
+        let selectedTarget = null;
+        let gameData = {{ game|tojson|safe }};
+        
+        function updateGame() {
+            fetch(`/api/game/${roomId}`)
+                .then(res => res.json())
+                .then(data => {
+                    gameData = data;
+                    renderUI();
+                });
+        }
+        
+        function renderUI() {
+            document.getElementById('day-number').textContent = gameData.current_day;
+            
+            const currentPlayer = gameData.players.find(p => p.key === secretKey);
+            const statusEl = document.getElementById('alive-status');
+            if (currentPlayer) {
+                statusEl.className = currentPlayer.alive ? 'alive-status alive' : 'alive-status dead';
+                statusEl.textContent = currentPlayer.alive ? '存活' : '已出局';
+                
+                // 动态更新身份卡片
+                const roleCard = document.querySelector('.role-card');
+                const roleIcon = document.querySelector('.role-icon');
+                const roleName = document.querySelector('.role-name');
+                const roleTeam = document.querySelector('.role-team');
+                
+                if (roleCard && roleIcon && roleName && roleTeam) {
+                    roleCard.className = `role-card ${currentPlayer.team}`;
+                    roleIcon.textContent = currentPlayer.role_icon;
+                    roleName.textContent = currentPlayer.role_name;
+                    if (currentPlayer.team === 'werewolf') roleTeam.textContent = '狼人阵营';
+                    else if (currentPlayer.team === 'god') roleTeam.textContent = '神职阵营';
+                    else roleTeam.textContent = '平民阵营';
+                }
+            }
+            
+            renderPlayersRow();
+            
+            const countdownSection = document.getElementById('countdown-section');
+            const playersHint = document.getElementById('players-hint');
+            const confirmBtn = document.getElementById('confirm-btn');
+            const abstainBtn = document.getElementById('abstain-btn');
+            
+            const isVoting = gameData.phase === 'voting' || gameData.phase === 'pk';
+            
+            if (isVoting) {
+                countdownSection.classList.add('active');
+                
+                const elapsed = (Date.now() / 1000) - gameData.vote_timer;
+                const remaining = Math.max(0, 10 - Math.floor(elapsed));
+                document.getElementById('countdown-number').textContent = remaining;
+                
+                // 显示PK目标
+                const pkTargetsDiv = document.getElementById('pk-targets');
+                if (gameData.phase === 'pk' && gameData.pk_targets && gameData.pk_targets.length > 0) {
+                    document.getElementById('countdown-mode').textContent = 'PK票';
+                    const targetNums = gameData.pk_targets.map(t => t.replace('号', '') + '号').join('、');
+                    pkTargetsDiv.textContent = 'PK玩家：' + targetNums;
+                    pkTargetsDiv.style.display = 'block';
+                } else {
+                    document.getElementById('countdown-mode').textContent = '选择玩家后点击确认投票';
+                    pkTargetsDiv.style.display = 'none';
+                }
+                
+                if (currentPlayer && currentPlayer.alive && !currentPlayer.has_voted) {
+                    playersHint.textContent = selectedTarget ? `已选择 ${selectedTarget}，点击确认投票` : '点击玩家头像选择投票对象';
+                    playersHint.style.color = selectedTarget ? '#52c41a' : '#1890ff';
+                    confirmBtn.style.display = 'block';
+                    confirmBtn.disabled = !selectedTarget;
+                    abstainBtn.style.display = 'block';
+                } else if (currentPlayer && currentPlayer.has_voted) {
+                    playersHint.textContent = currentPlayer.vote_target === 'abstain' ? '你已弃票' : '你已投票，等待其他玩家...';
+                    playersHint.style.color = '#52c41a';
+                    confirmBtn.style.display = 'none';
+                    abstainBtn.style.display = 'none';
+                } else {
+                    playersHint.textContent = '你已出局，无法投票';
+                    playersHint.style.color = '#999';
+                    confirmBtn.style.display = 'none';
+                    abstainBtn.style.display = 'none';
+                }
+            } else {
+                countdownSection.classList.remove('active');
+                playersHint.textContent = '等待主持人开启投票...';
+                playersHint.style.color = '#999';
+                confirmBtn.style.display = 'none';
+                abstainBtn.style.display = 'none';
+            }
+            
+            renderResults();
+        }
+        
+        function renderPlayersRow() {
+            const container = document.getElementById('players-row');
+            const currentPlayer = gameData.players.find(p => p.key === secretKey);
+            const isVoting = gameData.phase === 'voting' || gameData.phase === 'pk';
+            
+            let html = '';
+            gameData.players.forEach((p, idx) => {
+                const num = idx + 1;
+                const isSelf = p.key === secretKey;
+                const canSelect = isVoting && currentPlayer && currentPlayer.alive && !currentPlayer.has_voted && p.alive && !isSelf;
+                
+                const isPkTarget = gameData.phase === 'pk' && gameData.pk_targets.includes(p.name);
+                const canSelectInPk = gameData.phase === 'pk' ? isPkTarget : true;
+                
+                const classes = ['player-avatar'];
+                if (!p.alive) classes.push('dead');
+                if (isSelf) classes.push('self');
+                if (canSelect && canSelectInPk) classes.push('can-vote');
+                if (selectedTarget === p.name) classes.push('selected');
+                
+                const onclick = (canSelect && canSelectInPk) ? `onclick="selectPlayer('${p.name}')"` : '';
+                
+                // 自己的框显示"我"，其他显示号码
+                const displayText = isSelf ? '我' : num;
+                
+                html += `<div class="${classes.join(' ')}" ${onclick} id="player-${p.name}">${displayText}</div>`;
+            });
+            container.innerHTML = html;
+        }
+        
+        function selectPlayer(name) {
+            selectedTarget = name;
+            renderUI();
+        }
+        
+        async function confirmVote() {
+            if (!selectedTarget) {
+                showMessage('请先选择投票对象', 'error');
+                return;
+            }
+            
+            await submitVote(selectedTarget);
+        }
+        
+        async function abstainVote() {
+            await submitVote('abstain');
+        }
+        
+        async function submitVote(target) {
+            if (gameData.phase !== 'voting' && gameData.phase !== 'pk') {
+                showMessage('当前不是投票时间', 'error');
+                return;
+            }
+            
+            const currentPlayer = gameData.players.find(p => p.key === secretKey);
+            if (!currentPlayer || !currentPlayer.alive) {
+                showMessage('你已出局，无法投票', 'error');
+                return;
+            }
+            
+            if (currentPlayer.has_voted) {
+                showMessage('你已经投过票了', 'error');
+                return;
+            }
+            
+            const response = await fetch('/api/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    room_id: roomId,
+                    secret_key: secretKey,
+                    target: target
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                showMessage(target === 'abstain' ? '弃票成功！' : '投票成功！', 'success');
+                selectedTarget = null;
+            } else {
+                showMessage(data.error || '投票失败', 'error');
+            }
+        }
+        
+        function renderResults() {
+            const container = document.getElementById('results-container');
+            
+            // 收集所有有投票记录的天数
+            const voteDays = [];
+            for (let day = 1; day <= gameData.current_day; day++) {
+                const normalKey = `day_${day}_normal`;
+                const pkKey = `day_${day}_pk`;
+                if ((gameData.votes[normalKey] && Object.keys(gameData.votes[normalKey]).length > 0) ||
+                    (gameData.votes[pkKey] && Object.keys(gameData.votes[pkKey]).length > 0)) {
+                    voteDays.push(day);
+                }
+            }
+            
+            if (gameData.phase !== 'voting' && gameData.phase !== 'pk' && voteDays.length === 0) {
+                container.innerHTML = '<p class="waiting-text">暂无投票记录</p>';
+                return;
+            }
+            
+            if (gameData.phase === 'voting' || gameData.phase === 'pk') {
+                container.innerHTML = '<p class="waiting-text">投票进行中，结束后显示结果...</p>';
+                return;
+            }
+            
+            let html = '';
+            
+            // 按天数生成投票结果卡片
+            voteDays.forEach(day => {
+                const normalKey = `day_${day}_normal`;
+                const pkKey = `day_${day}_pk`;
+                
+                html += `<div class="vote-day-card">`;
+                html += `<div class="vote-day-header"><span class="vote-day-title">第${day}天投票结果</span></div>`;
+                
+                // 普票
+                if (gameData.votes[normalKey] && Object.keys(gameData.votes[normalKey]).length > 0) {
+                    html += renderVoteRows(gameData.votes[normalKey]);
+                }
+                
+                // PK票
+                if (gameData.votes[pkKey] && Object.keys(gameData.votes[pkKey]).length > 0) {
+                    html += '<div style="font-size:11px;color:#722ed1;margin:8px 0 4px;">PK票</div>';
+                    html += renderVoteRows(gameData.votes[pkKey]);
+                }
+                
+                html += '</div>';
+            });
+            
+            // 底部指示点
+            if (voteDays.length > 1) {
+                html += '<div class="vote-day-dots" style="justify-content:center;padding-top:10px;">';
+                voteDays.forEach((day, idx) => {
+                    html += `<div class="vote-day-dot ${idx === voteDays.length - 1 ? 'active' : ''}"></div>`;
+                });
+                html += '</div>';
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        function renderVoteRows(votes) {
+            // 按目标分组
+            const targetGroups = {};
+            const abstainVoters = [];
+            
+            for (const [key, target] of Object.entries(votes)) {
+                const voter = gameData.players.find(p => p.key === key);
+                if (voter) {
+                    if (target === 'abstain') {
+                        abstainVoters.push(voter.name.replace('号', ''));
+                    } else {
+                        if (!targetGroups[target]) targetGroups[target] = [];
+                        targetGroups[target].push(voter.name.replace('号', ''));
+                    }
+                }
+            }
+            
+            let html = '<div class="vote-results-box">';
+            
+            // 显示投票
+            for (const [target, voters] of Object.entries(targetGroups)) {
+                const targetNum = target.replace('号', '');
+                html += '<div class="vote-row">';
+                voters.forEach(v => {
+                    html += `<div class="vote-avatar-sm">${v}</div>`;
+                });
+                html += `<span class="vote-arrow">→</span><div class="vote-target-sm">${targetNum}</div></div>`;
+            }
+            
+            // 显示弃票
+            if (abstainVoters.length > 0) {
+                html += '<div class="vote-row">';
+                abstainVoters.forEach(v => {
+                    html += `<div class="vote-avatar-sm" style="background:#fffbe6;border-color:#faad14;">${v}</div>`;
+                });
+                html += `<span class="vote-arrow">→</span><div class="vote-target-sm" style="background:#fffbe6;border-color:#faad14;">弃</div></div>`;
+            }
+            
+            html += '</div>';
+            return html;
+        }
+        
+        function showMessage(msg, type) {
+            const area = document.getElementById('message-area');
+            area.innerHTML = `<div class="message ${type}">${msg}</div>`;
+            setTimeout(() => { area.innerHTML = ''; }, 3000);
+        }
+        
+        setInterval(updateGame, 1000);
+        updateGame();
+    </script>
+</body>
+</html>
