@@ -220,15 +220,14 @@
             <h1>狼人杀</h1>
         </header>
         
-        <!-- 创建房间卡片 -->
         <div class="card">
             <div class="card-title">创建房间</div>
             <input type="password" id="create-password" placeholder="输入创建密码">
             
             <div class="preset-btns">
-                <button class="preset-btn" onclick="loadPreset('6')">6人</button>
-                <button class="preset-btn" onclick="loadPreset('9')">9人</button>
-                <button class="preset-btn" onclick="loadPreset('12')">12人</button>
+                <button class="preset-btn" onclick="window.loadPreset('6', this)">6人</button>
+                <button class="preset-btn" onclick="window.loadPreset('9', this)">9人</button>
+                <button class="preset-btn" onclick="window.loadPreset('12', this)">12人</button>
             </div>
             
             <div class="role-grid" id="role-grid"></div>
@@ -237,19 +236,17 @@
                 总人数：<strong id="total-count">0</strong> 人
             </div>
             
-            <button class="btn btn-primary" id="create-btn" onclick="createRoom()">创建房间</button>
+            <button class="btn btn-primary" id="create-btn" onclick="window.createRoom()">创建房间</button>
         </div>
         
-        <!-- 进入房间卡片 -->
         <div class="card">
             <div class="card-title">进入房间</div>
             <input type="text" id="room-id" placeholder="房间号（3位数字）">
             <input type="text" id="enter-key" placeholder="秘钥（玩家6位/管理员13544）">
-            <button class="btn btn-primary" onclick="enterRoom()">进入</button>
+            <button class="btn btn-primary" onclick="window.enterRoom()">进入</button>
         </div>
     </div>
     
-    <!-- 成功弹窗 -->
     <div class="modal" id="success-modal">
         <div class="modal-content">
             <div class="modal-icon">🎉</div>
@@ -258,29 +255,56 @@
                 <div class="modal-row"><span>房间号</span><span id="modal-room"></span></div>
             </div>
             <p class="modal-hint">管理员密码：<strong>13544</strong></p>
-            <button class="modal-btn primary" onclick="enterHost()">进入主持人界面</button>
+            <button class="modal-btn primary" onclick="window.enterHost()">进入主持人界面</button>
         </div>
     </div>
     
-    <script src="js/config.js"></script>
     <script>
-        const { supabase, ROLES, CREATE_PASSWORD, ADMIN_PASSWORD, generateRoomId, generateKey } = window.gameConfig;
-        
+        const SUPABASE_URL = 'https://opfzulpitspblasmybba.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_M3SmjoDJZ3PUyLH_nF3Awg_v8O-EG6i';
+        const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const ROLES = {
+            werewolf: { name: '狼人', icon: '🐺', team: 'werewolf' },
+            wolf_king: { name: '狼王', icon: '👑', team: 'werewolf' },
+            white_wolf: { name: '白狼王', icon: '🤍', team: 'werewolf' },
+            mechanical_wolf: { name: '机械狼', icon: '🤖', team: 'werewolf' },
+            wolf_beauty: { name: '狼美人', icon: '💄', team: 'werewolf' },
+            seer: { name: '预言家', icon: '🔮', team: 'god' },
+            witch: { name: '女巫', icon: '🧙', team: 'god' },
+            hunter: { name: '猎人', icon: '🏹', team: 'god' },
+            guard: { name: '守卫', icon: '🛡️', team: 'god' },
+            knight: { name: '骑士', icon: '⚔️', team: 'god' },
+            medium: { name: '通灵师', icon: '👻', team: 'god' },
+            idiot: { name: '白痴', icon: '🤪', team: 'god' },
+            villager: { name: '平民', icon: '👨‍🌾', team: 'villager' }
+        };
+
+        const CREATE_PASSWORD = '13542';
+        const ADMIN_PASSWORD = '13544';
+
         const roles = {
             werewolf: 0, wolf_king: 0, white_wolf: 0, mechanical_wolf: 0, wolf_beauty: 0,
             seer: 0, witch: 0, hunter: 0, guard: 0, knight: 0, medium: 0, idiot: 0,
             villager: 0
         };
-        
+
         let createdRoomId = null;
-        
+
         const presets = {
             '6': { werewolf: 2, seer: 1, witch: 1, villager: 2 },
             '9': { werewolf: 3, seer: 1, witch: 1, hunter: 1, villager: 3 },
             '12': { werewolf: 4, seer: 1, witch: 1, hunter: 1, guard: 1, villager: 4 }
         };
-        
-        // 初始化角色网格
+
+        function generateRoomId() {
+            return Math.floor(100 + Math.random() * 900).toString();
+        }
+
+        function generateKey() {
+            return Math.floor(100000 + Math.random() * 900000).toString();
+        }
+
         function initRoleGrid() {
             const grid = document.getElementById('role-grid');
             let html = '';
@@ -292,36 +316,33 @@
                             <span class="name">${role.name}</span>
                         </div>
                         <div class="role-count">
-                            <button onclick="adjustRole('${id}', -1)">-</button>
+                            <button onclick="window.adjustRole('${id}', -1)">-</button>
                             <span id="count-${id}">0</span>
-                            <button onclick="adjustRole('${id}', 1)">+</button>
+                            <button onclick="window.adjustRole('${id}', 1)">+</button>
                         </div>
                     </div>
                 `;
             }
             grid.innerHTML = html;
         }
-        
-        function adjustRole(id, delta) {
+
+        window.adjustRole = function(id, delta) {
             roles[id] = Math.max(0, roles[id] + delta);
             document.getElementById(`count-${id}`).textContent = roles[id];
             updateTotal();
-            // 清除预设选中状态
             document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-        }
-        
+        };
+
         function updateTotal() {
             const total = Object.values(roles).reduce((a, b) => a + b, 0);
             document.getElementById('total-count').textContent = total;
         }
-        
-        function loadPreset(name) {
-            // 重置
+
+        window.loadPreset = function(name, btn) {
             Object.keys(roles).forEach(r => {
                 roles[r] = 0;
                 document.getElementById(`count-${r}`).textContent = 0;
             });
-            // 加载预设
             const preset = presets[name];
             if (preset) {
                 Object.entries(preset).forEach(([r, c]) => {
@@ -330,12 +351,11 @@
                 });
             }
             updateTotal();
-            // 设置选中状态
             document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
-            event.target.classList.add('active');
-        }
-        
-        async function createRoom() {
+            if (btn) btn.classList.add('active');
+        };
+
+        window.createRoom = async function() {
             const password = document.getElementById('create-password').value;
             if (password !== CREATE_PASSWORD) {
                 alert('创建密码错误');
@@ -348,17 +368,15 @@
                 return;
             }
             
-            // 生成房间号
             let roomId;
             let exists = true;
             while (exists) {
                 roomId = generateRoomId();
-                const { data } = await supabase.from('rooms').select('id').eq('id', roomId).single();
+                const { data } = await sbClient.from('rooms').select('id').eq('id', roomId).single();
                 exists = !!data;
             }
             
-            // 创建房间
-            const { error: roomError } = await supabase.from('rooms').insert({
+            const { error: roomError } = await sbClient.from('rooms').insert({
                 id: roomId,
                 current_day: 1,
                 phase: 'waiting'
@@ -369,7 +387,6 @@
                 return;
             }
             
-            // 收集角色并随机打乱
             let roleList = [];
             for (const [id, count] of Object.entries(roles)) {
                 for (let i = 0; i < count; i++) {
@@ -378,7 +395,6 @@
             }
             roleList.sort(() => Math.random() - 0.5);
             
-            // 创建玩家
             const players = [];
             for (let i = 0; i < roleList.length; i++) {
                 const roleId = roleList[i];
@@ -396,29 +412,28 @@
                 });
             }
             
-            const { error: playerError } = await supabase.from('players').insert(players);
+            const { error: playerError } = await sbClient.from('players').insert(players);
             if (playerError) {
                 alert('创建玩家失败：' + playerError.message);
                 return;
             }
             
-            // 保存角色配置
             const configData = Object.entries(roles)
                 .filter(([id, count]) => count > 0)
                 .map(([id, count]) => ({ room_id: roomId, role_id: id, count }));
             
-            await supabase.from('room_config').insert(configData);
+            await sbClient.from('room_config').insert(configData);
             
             createdRoomId = roomId;
             document.getElementById('modal-room').textContent = roomId;
             document.getElementById('success-modal').classList.add('show');
-        }
-        
-        function enterHost() {
+        };
+
+        window.enterHost = function() {
             window.location.href = `host.html?room=${createdRoomId}`;
-        }
-        
-        async function enterRoom() {
+        };
+
+        window.enterRoom = async function() {
             const roomId = document.getElementById('room-id').value.trim();
             const key = document.getElementById('enter-key').value.trim();
             
@@ -427,9 +442,8 @@
                 return;
             }
             
-            // 检查是否是管理员
             if (key === ADMIN_PASSWORD) {
-                const { data: room } = await supabase.from('rooms').select('id').eq('id', roomId).single();
+                const { data: room } = await sbClient.from('rooms').select('id').eq('id', roomId).single();
                 if (room) {
                     window.location.href = `host.html?room=${roomId}`;
                     return;
@@ -438,8 +452,7 @@
                 return;
             }
             
-            // 检查是否是玩家
-            const { data: player } = await supabase.from('players')
+            const { data: player } = await sbClient.from('players')
                 .select('*')
                 .eq('room_id', roomId)
                 .eq('key', key)
@@ -450,8 +463,8 @@
             } else {
                 alert('秘钥无效');
             }
-        }
-        
+        };
+
         initRoleGrid();
     </script>
 </body>

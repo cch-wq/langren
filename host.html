@@ -182,9 +182,39 @@
         .player-avatar.voted .check {
             display: flex;
         }
+        .player-avatar .sd-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            font-size: 14px;
+            padding: 2px;
+            border-radius: 50%;
+            background: rgba(255, 77, 79, 0.9);
+            color: white;
+            box-shadow: 0 0 6px rgba(255, 77, 79, 0.6);
+        }
         
+        .day-indicator {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .swipe-container {
+            overflow-x: hidden;
+            overflow-y: auto;
+            touch-action: pan-x;
+            position: relative;
+        }
         .vote-results {
             padding: 10px 0;
+            transition: transform 0.3s ease;
+        }
+        .swipe-hint {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
         }
         .vote-row {
             display: flex;
@@ -278,6 +308,10 @@
         .modal-btn.default {
             background: #f5f5f5;
         }
+        .modal-btn.danger {
+            background: #ff4d4f;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -314,9 +348,9 @@
                 </div>
             </div>
             <div class="btn-group">
-                <button class="btn btn-primary" id="vote-btn" onclick="startVote('normal')">普票</button>
-                <button class="btn btn-secondary" id="pk-btn" onclick="startVote('pk')">PK票</button>
-                <button class="btn btn-secondary" onclick="nextDay()">下一天</button>
+                <button class="btn btn-primary" id="vote-btn" onclick="window.startVote('normal')">普票</button>
+                <button class="btn btn-secondary" id="pk-btn" onclick="window.startVote('pk')">PK票</button>
+                <button class="btn btn-secondary" onclick="window.nextDay()">下一天</button>
             </div>
         </div>
         
@@ -327,7 +361,11 @@
         
         <div class="card" id="vote-results-card" style="display:none">
             <div class="card-title">投票结果</div>
-            <div class="vote-results" id="vote-results"></div>
+            <div class="day-indicator" id="day-indicator">第 1 天</div>
+            <div class="swipe-container" id="swipe-container" ontouchstart="window.swipeStart(event)" ontouchmove="window.swipeMove(event)" ontouchend="window.swipeEnd(event)">
+                <div class="vote-results" id="vote-results"></div>
+            </div>
+            <div class="swipe-hint">← 左右滑动查看历史 →</div>
         </div>
         
         <div class="card">
@@ -336,7 +374,7 @@
         </div>
         
         <div class="card">
-            <button class="btn btn-danger" onclick="resetGame()">结束本局，重新开始</button>
+            <button class="btn btn-danger" onclick="window.resetGame()">结束本局，重新开始</button>
         </div>
     </div>
     
@@ -344,8 +382,8 @@
         <div class="modal-content">
             <div class="modal-title" id="eliminate-title">淘汰玩家？</div>
             <div class="modal-btns">
-                <button class="modal-btn default" onclick="closeModal()">取消</button>
-                <button class="modal-btn primary" onclick="confirmEliminate()">确定</button>
+                <button class="modal-btn default" onclick="window.closeModal()">取消</button>
+                <button class="modal-btn primary" onclick="window.confirmEliminate()">确定</button>
             </div>
         </div>
     </div>
@@ -355,42 +393,69 @@
             <div class="modal-title">选择PK玩家</div>
             <div class="player-grid" id="pk-grid"></div>
             <div class="modal-btns" style="margin-top:15px">
-                <button class="modal-btn default" onclick="closePkModal()">取消</button>
-                <button class="modal-btn primary" onclick="confirmPk()">开始PK</button>
+                <button class="modal-btn default" onclick="window.closePkModal()">取消</button>
+                <button class="modal-btn primary" onclick="window.confirmPk()">开始PK</button>
             </div>
         </div>
     </div>
     
-    <script src="js/config.js"></script>
+    <div class="modal" id="werewolf-modal">
+        <div class="modal-content">
+            <div class="modal-title" id="werewolf-title">狼人操作</div>
+            <div class="modal-btns">
+                <button class="modal-btn default" onclick="window.closeWerewolfModal()">淘汰</button>
+                <button class="modal-btn danger" onclick="window.confirmSelfDestruct()">自爆</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
-        const { supabase, ROLES } = window.gameConfig;
-        
+        const SUPABASE_URL = 'https://opfzulpitspblasmybba.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_M3SmjoDJZ3PUyLH_nF3Awg_v8O-EG6i';
+        const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        const ROLES = {
+            werewolf: { name: '狼人', icon: '🐺', team: 'werewolf' },
+            wolf_king: { name: '狼王', icon: '👑', team: 'werewolf' },
+            white_wolf: { name: '白狼王', icon: '🤍', team: 'werewolf' },
+            mechanical_wolf: { name: '机械狼', icon: '🤖', team: 'werewolf' },
+            wolf_beauty: { name: '狼美人', icon: '💄', team: 'werewolf' },
+            seer: { name: '预言家', icon: '🔮', team: 'god' },
+            witch: { name: '女巫', icon: '🧙', team: 'god' },
+            hunter: { name: '猎人', icon: '🏹', team: 'god' },
+            guard: { name: '守卫', icon: '🛡️', team: 'god' },
+            knight: { name: '骑士', icon: '⚔️', team: 'god' },
+            medium: { name: '通灵师', icon: '👻', team: 'god' },
+            idiot: { name: '白痴', icon: '🤪', team: 'god' },
+            villager: { name: '平民', icon: '👨‍🌾', team: 'villager' }
+        };
+
         let roomId = null;
         let roomData = null;
         let players = [];
         let selectedPlayer = null;
-        let pkSelected = [];
+        window.pkSelected = [];
         let countdownInterval = null;
-        
-        // 获取URL参数
+        let currentVoteDay = 1;
+        let swipeStartX = 0;
+        let swipeEndX = 0;
+
         function getUrlParam(name) {
             const params = new URLSearchParams(window.location.search);
             return params.get(name);
         }
-        
-        // 初始化
+
         async function init() {
             roomId = getUrlParam('room');
             if (!roomId) {
                 alert('房间号无效');
-                window.location.href = 'index-static.html';
+                window.location.href = 'index.html';
                 return;
             }
             
             document.getElementById('room-id').textContent = roomId;
             
-            // 订阅实时更新
-            supabase.channel('room-' + roomId)
+            sbClient.channel('room-' + roomId)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, loadRoom)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` }, loadPlayers)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'votes', filter: `room_id=eq.${roomId}` }, loadVotes)
@@ -398,10 +463,11 @@
             
             await loadRoom();
             await loadPlayers();
+            await loadVotes();
         }
-        
+
         async function loadRoom() {
-            const { data } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+            const { data } = await sbClient.from('rooms').select('*').eq('id', roomId).single();
             roomData = data;
             if (roomData) {
                 document.getElementById('day-display').textContent = `第 ${roomData.current_day} 天`;
@@ -413,76 +479,121 @@
                 }
             }
         }
-        
+
         async function loadPlayers() {
-            const { data } = await supabase.from('players').select('*').eq('room_id', roomId).order('player_num');
+            const { data } = await sbClient.from('players').select('*').eq('room_id', roomId).order('player_num');
             players = data || [];
             renderPlayers();
             renderKeys();
             updateStats();
         }
-        
+
         async function loadVotes() {
             if (!roomData) return;
             
-            const { data } = await supabase.from('votes')
+            if (currentVoteDay < 1) {
+                currentVoteDay = 1;
+            }
+            
+            let votes = [];
+            
+            const { data: pkVotes } = await sbClient.from('votes')
                 .select('*')
                 .eq('room_id', roomId)
-                .eq('day', roomData.current_day)
-                .eq('mode', roomData.pk_mode || 'normal');
+                .eq('day', currentVoteDay)
+                .eq('mode', 'pk');
             
-            renderVoteResults(data || []);
+            if (pkVotes && pkVotes.length > 0) {
+                votes = pkVotes;
+            } else {
+                const { data: normalVotes } = await sbClient.from('votes')
+                    .select('*')
+                    .eq('room_id', roomId)
+                    .eq('day', currentVoteDay)
+                    .eq('mode', 'normal');
+                votes = normalVotes || [];
+            }
             
-            // 检查是否所有人都投票了
+            document.getElementById('day-indicator').textContent = `第 ${currentVoteDay} 天`;
+            renderVoteResults(votes);
+            
             const alivePlayers = players.filter(p => p.alive);
-            if (data && data.length >= alivePlayers.length && roomData.phase !== 'waiting') {
+            if (votes.length >= alivePlayers.length && roomData.phase !== 'waiting') {
                 hideCountdown();
             }
         }
-        
+
+        window.loadVotesByDay = async function(day) {
+            if (!roomData || day < 1) return;
+            
+            const { data: pkVotes } = await sbClient.from('votes')
+                .select('*')
+                .eq('room_id', roomId)
+                .eq('day', day)
+                .eq('mode', 'pk');
+            
+            if (pkVotes && pkVotes.length > 0) {
+                renderVoteResults(pkVotes);
+                return;
+            }
+            
+            const { data: normalVotes } = await sbClient.from('votes')
+                .select('*')
+                .eq('room_id', roomId)
+                .eq('day', day)
+                .eq('mode', 'normal');
+            
+            renderVoteResults(normalVotes || []);
+        };
+
         function renderPlayers() {
             const grid = document.getElementById('player-grid');
             let html = '';
             players.forEach(p => {
+                const isSelfDestruct = p.vote_target === '自爆';
                 const classes = ['player-avatar'];
                 if (!p.alive) classes.push('dead');
                 if (p.has_voted) classes.push('voted');
+                if (isSelfDestruct) classes.push('self-destruct');
                 
                 const teamColor = p.team === 'werewolf' ? '#ff4d4f' : (p.team === 'god' ? '#722ed1' : '#52c41a');
                 
+                const onclick = p.team === 'werewolf' && p.alive ? `onclick="window.showWerewolfMenu(${p.player_num})"` : `onclick="window.selectEliminate(${p.player_num})"`;
+                
                 html += `
-                    <div class="${classes.join(' ')}" onclick="selectEliminate(${p.player_num})" style="border-color: ${teamColor}">
+                    <div class="${classes.join(' ')}" ${onclick} style="border-color: ${teamColor}">
                         <div class="num">${p.player_num}号</div>
                         <div class="role-icon">${p.role_icon}</div>
                         <div class="check">✓</div>
+                        ${isSelfDestruct ? '<div class="sd-badge">💥</div>' : ''}
                     </div>
                 `;
             });
             grid.innerHTML = html;
         }
-        
+
         function renderKeys() {
             const list = document.getElementById('key-list');
             let html = '';
             players.forEach(p => {
-                html += `<span class="key-item" onclick="copyKey('${p.player_num}', '${p.role_name}', '${p.key}')">${p.player_num}号 ${p.role_name} ${p.key}</span>`;
+                html += `<span class="key-item" onclick="window.copyKey('${p.player_num}', '${p.role_name}', '${p.key}')">${p.player_num}号 ${p.role_name} ${p.key}</span>`;
             });
             list.innerHTML = html;
         }
-        
-        function copyKey(num, role, key) {
+
+        window.copyKey = function(num, role, key) {
             navigator.clipboard.writeText(key).then(() => {
                 alert(`${num}号 ${role} 秘钥已复制：${key}`);
             });
-        }
-        
+        };
+
         function updateStats() {
             const alive = players.filter(p => p.alive).length;
             const voted = players.filter(p => p.has_voted).length;
             document.getElementById('alive-count').textContent = alive;
             document.getElementById('voted-count').textContent = voted;
         }
-        
+
         function showCountdown() {
             document.getElementById('countdown-bar').classList.add('show');
             document.getElementById('countdown-mode').textContent = roomData.pk_mode === 'pk' ? 'PK票进行中...' : '普票进行中...';
@@ -493,7 +604,6 @@
                 document.getElementById('pk-targets').textContent = '';
             }
             
-            // 倒计时
             if (countdownInterval) clearInterval(countdownInterval);
             
             let remaining = 10;
@@ -509,15 +619,16 @@
                 }
             }, 200);
         }
-        
+
         function hideCountdown() {
             document.getElementById('countdown-bar').classList.remove('show');
             if (countdownInterval) {
                 clearInterval(countdownInterval);
                 countdownInterval = null;
             }
+            loadVotes();
         }
-        
+
         function renderVoteResults(votes) {
             if (!votes.length) {
                 document.getElementById('vote-results-card').style.display = 'none';
@@ -526,7 +637,6 @@
             
             document.getElementById('vote-results-card').style.display = 'block';
             
-            // 按目标分组
             const grouped = {};
             votes.forEach(v => {
                 if (!grouped[v.target]) grouped[v.target] = [];
@@ -549,66 +659,62 @@
             
             document.getElementById('vote-results').innerHTML = html;
         }
-        
-        async function startVote(mode) {
+
+        window.startVote = function(mode) {
             if (mode === 'pk') {
-                // 显示PK选择弹窗
-                pkSelected = [];
+                window.pkSelected = [];
                 renderPkGrid();
                 document.getElementById('pk-modal').classList.add('show');
             } else {
-                await beginVote('normal', []);
+                beginVote('normal', []);
             }
-        }
-        
+        };
+
         function renderPkGrid() {
             const grid = document.getElementById('pk-grid');
             let html = '';
             players.filter(p => p.alive).forEach(p => {
-                const selected = pkSelected.includes(p.player_num + '号');
+                const selected = window.pkSelected.includes(p.player_num + '号');
                 html += `
-                    <div class="player-avatar ${selected ? 'voted' : ''}" onclick="togglePk(${p.player_num})" style="border-color: #1890ff">
+                    <div class="player-avatar ${selected ? 'voted' : ''}" onclick="window.togglePk(${p.player_num})" style="border-color: #1890ff">
                         <div class="num">${p.player_num}号</div>
                     </div>
                 `;
             });
             grid.innerHTML = html;
         }
-        
-        function togglePk(num) {
+
+        window.togglePk = function(num) {
             const name = num + '号';
-            if (pkSelected.includes(name)) {
-                pkSelected = pkSelected.filter(n => n !== name);
+            if (window.pkSelected.includes(name)) {
+                window.pkSelected = window.pkSelected.filter(n => n !== name);
             } else {
-                pkSelected.push(name);
+                window.pkSelected.push(name);
             }
             renderPkGrid();
-        }
-        
-        async function confirmPk() {
-            if (pkSelected.length < 2) {
+        };
+
+        window.confirmPk = async function() {
+            if (window.pkSelected.length < 2) {
                 alert('请至少选择2名玩家进行PK');
                 return;
             }
             closeModal();
-            await beginVote('pk', pkSelected);
-        }
-        
+            await beginVote('pk', window.pkSelected);
+        };
+
         async function beginVote(mode, targets) {
-            // 重置玩家投票状态
-            await supabase.from('players')
+            await sbClient.from('players')
                 .update({ has_voted: false, vote_target: null })
                 .eq('room_id', roomId);
             
-            // 删除当天当模式的投票记录
-            await supabase.from('votes')
+            await sbClient.from('votes')
                 .delete()
                 .eq('room_id', roomId)
                 .eq('day', roomData.current_day)
                 .eq('mode', mode);
             
-            // 更新房间状态
-            await supabase.from('rooms')
+            await sbClient.from('rooms')
                 .update({
                     phase: mode === 'pk' ? 'pk' : 'voting',
                     pk_mode: mode,
@@ -617,43 +723,83 @@
                 })
                 .eq('id', roomId);
         }
-        
-        function selectEliminate(num) {
+
+        window.selectEliminate = function(num) {
             selectedPlayer = num;
             const player = players.find(p => p.player_num === num);
             document.getElementById('eliminate-title').textContent = player.alive ? `淘汰 ${num}号？` : `复活 ${num}号？`;
             document.getElementById('eliminate-modal').classList.add('show');
-        }
-        
-        async function confirmEliminate() {
+        };
+
+        window.confirmEliminate = async function() {
             closeModal();
             const player = players.find(p => p.player_num === selectedPlayer);
             if (player) {
-                await supabase.from('players')
+                await sbClient.from('players')
                     .update({ alive: !player.alive })
                     .eq('id', player.id);
             }
-        }
-        
-        function closeModal() {
+        };
+
+        window.closeModal = function() {
             document.getElementById('eliminate-modal').classList.remove('show');
             document.getElementById('pk-modal').classList.remove('show');
-        }
-        
-        function closePkModal() {
+        };
+
+        window.closePkModal = function() {
             document.getElementById('pk-modal').classList.remove('show');
-        }
-        
-        async function nextDay() {
+        };
+
+        window.showWerewolfMenu = function(num) {
+            selectedPlayer = num;
+            const player = players.find(p => p.player_num === num);
+            document.getElementById('werewolf-title').textContent = `${num}号 ${player.role_name}`;
+            const modal = document.getElementById('werewolf-modal');
+            modal.classList.add('show');
+            modal.onclick = function(e) {
+                if (e.target === modal) {
+                    window.closeWerewolfModal();
+                }
+            };
+        };
+
+        window.closeWerewolfModal = function() {
+            document.getElementById('werewolf-modal').classList.remove('show');
+            selectEliminate(selectedPlayer);
+        };
+
+        window.confirmSelfDestruct = async function() {
+            document.getElementById('werewolf-modal').classList.remove('show');
+            const player = players.find(p => p.player_num === selectedPlayer);
+            if (player) {
+                try {
+                    await sbClient.from('players')
+                        .update({ alive: false, vote_target: '自爆' })
+                        .eq('id', player.id);
+                    
+                    player.alive = false;
+                    player.vote_target = '自爆';
+                    renderPlayers();
+                } catch (error) {
+                    console.error('自爆失败:', error);
+                }
+            }
+        };
+
+        window.nextDay = async function() {
             if (!confirm('进入下一天？')) return;
             
-            // 重置投票状态
-            await supabase.from('players')
-                .update({ has_voted: false, vote_target: null })
-                .eq('room_id', roomId);
+            await sbClient.from('players')
+                .update({ has_voted: false })
+                .eq('room_id', roomId)
+                .not('vote_target', 'eq', '自爆');
             
-            // 更新房间
-            await supabase.from('rooms')
+            await sbClient.from('players')
+                .update({ vote_target: null })
+                .eq('room_id', roomId)
+                .not('vote_target', 'eq', '自爆');
+            
+            await sbClient.from('rooms')
                 .update({
                     current_day: roomData.current_day + 1,
                     phase: 'waiting',
@@ -663,13 +809,12 @@
                 .eq('id', roomId);
             
             document.getElementById('vote-results-card').style.display = 'none';
-        }
-        
-        async function resetGame() {
+        };
+
+        window.resetGame = async function() {
             if (!confirm('结束本局并重新分配身份？')) return;
             
-            // 收集现有角色配置
-            const { data: config } = await supabase.from('room_config').select('*').eq('room_id', roomId);
+            const { data: config } = await sbClient.from('room_config').select('*').eq('room_id', roomId);
             
             let roleList = [];
             config.forEach(c => {
@@ -678,13 +823,11 @@
                 }
             });
             
-            // 随机打乱
             roleList.sort(() => Math.random() - 0.5);
             
-            // 更新玩家
             for (let i = 0; i < players.length; i++) {
                 const roleId = roleList[i];
-                await supabase.from('players')
+                await sbClient.from('players')
                     .update({
                         role: roleId,
                         role_name: ROLES[roleId].name,
@@ -697,11 +840,9 @@
                     .eq('id', players[i].id);
             }
             
-            // 删除所有投票记录
-            await supabase.from('votes').delete().eq('room_id', roomId);
+            await sbClient.from('votes').delete().eq('room_id', roomId);
             
-            // 重置房间
-            await supabase.from('rooms')
+            await sbClient.from('rooms')
                 .update({
                     current_day: 1,
                     phase: 'waiting',
@@ -711,8 +852,56 @@
                 .eq('id', roomId);
             
             document.getElementById('vote-results-card').style.display = 'none';
-        }
-        
+        };
+
+        window.swipeStart = function(event) {
+            swipeStartX = event.touches[0].clientX;
+            document.getElementById('vote-results').style.transition = 'none';
+        };
+
+        window.swipeMove = function(event) {
+            swipeEndX = event.touches[0].clientX;
+            const diff = swipeEndX - swipeStartX;
+            const voteResults = document.getElementById('vote-results');
+            if (voteResults) {
+                voteResults.style.transform = `translateX(${diff}px)`;
+            }
+        };
+
+        window.swipeEnd = function() {
+            const diff = swipeEndX - swipeStartX;
+            const threshold = 50;
+            const voteResults = document.getElementById('vote-results');
+            
+            voteResults.style.transition = 'transform 0.3s ease';
+            
+            if (diff > threshold) {
+                if (currentVoteDay > 1) {
+                    voteResults.style.transform = 'translateX(100%)';
+                    setTimeout(() => {
+                        currentVoteDay--;
+                        loadVotes();
+                        voteResults.style.transform = 'translateX(0)';
+                    }, 300);
+                } else {
+                    voteResults.style.transform = 'translateX(0)';
+                }
+            } else if (diff < -threshold) {
+                if (currentVoteDay < roomData.current_day) {
+                    voteResults.style.transform = 'translateX(-100%)';
+                    setTimeout(() => {
+                        currentVoteDay++;
+                        loadVotes();
+                        voteResults.style.transform = 'translateX(0)';
+                    }, 300);
+                } else {
+                    voteResults.style.transform = 'translateX(0)';
+                }
+            } else {
+                voteResults.style.transform = 'translateX(0)';
+            }
+        };
+
         init();
     </script>
 </body>

@@ -158,6 +158,117 @@
             border-color: #1890ff;
             box-shadow: 0 0 0 2px rgba(24, 144, 255, 0.2);
         }
+        .player-avatar.wolf-teammate {
+            border-color: #ff4d4f;
+            box-shadow: 0 0 0 2px rgba(255, 77, 79, 0.2);
+        }
+        .player-avatar .annotation {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            font-size: 10px;
+            font-weight: bold;
+            padding: 1px 4px;
+            border-radius: 4px;
+        }
+        .annotation-gold {
+            background: rgba(255, 215, 0, 0.3);
+            color: rgba(218, 165, 32, 0.8);
+        }
+        .annotation-god {
+            background: rgba(114, 46, 209, 0.4);
+            color: #722ed1;
+        }
+        .annotation-wolf {
+            background: rgba(255, 77, 79, 0.4);
+            color: #ff4d4f;
+        }
+        .annotation-villager {
+            background: rgba(82, 196, 26, 0.4);
+            color: #52c41a;
+        }
+        .player-avatar .sd-badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            font-size: 14px;
+            padding: 2px;
+            border-radius: 50%;
+            background: rgba(255, 77, 79, 0.9);
+            color: white;
+            box-shadow: 0 0 6px rgba(255, 77, 79, 0.6);
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            width: 80%;
+            max-width: 300px;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        .annotation-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+        }
+        .annotation-btn {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .annotation-btn:active {
+            opacity: 0.8;
+        }
+        .annotation-btn.gold {
+            background: rgba(255, 215, 0, 0.2);
+            color: rgba(218, 165, 32, 0.8);
+            border: 1px solid rgba(255, 215, 0, 0.3);
+        }
+        .annotation-btn.god {
+            background: rgba(114, 46, 209, 0.2);
+            color: #722ed1;
+            border: 1px solid rgba(114, 46, 209, 0.3);
+        }
+        .annotation-btn.wolf {
+            background: rgba(255, 77, 79, 0.2);
+            color: #ff4d4f;
+            border: 1px solid rgba(255, 77, 79, 0.3);
+        }
+        .annotation-btn.villager {
+            background: rgba(82, 196, 26, 0.2);
+            color: #52c41a;
+            border: 1px solid rgba(82, 196, 26, 0.3);
+        }
+        .annotation-btn.cancel {
+            background: rgba(150, 150, 150, 0.2);
+            color: #999;
+            border: 1px solid rgba(150, 150, 150, 0.3);
+        }
         .player-avatar.can-vote {
             cursor: pointer;
             transition: transform 0.1s;
@@ -195,8 +306,27 @@
             color: #666;
         }
         
+        .day-indicator {
+            text-align: center;
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .swipe-container {
+            overflow-x: hidden;
+            overflow-y: auto;
+            touch-action: pan-x;
+            position: relative;
+        }
         .vote-results {
             padding: 10px 0;
+            transition: transform 0.3s ease;
+        }
+        .swipe-hint {
+            text-align: center;
+            font-size: 12px;
+            color: #999;
+            margin-top: 10px;
         }
         .vote-row {
             display: flex;
@@ -216,6 +346,10 @@
             font-weight: bold;
             background: #f0f0f0;
             border: 2px solid #d9d9d9;
+        }
+        .vote-avatar.wolf-vote {
+            border-color: #ff4d4f;
+            background: rgba(255, 77, 79, 0.1);
         }
         .vote-arrow {
             color: #999;
@@ -268,22 +402,44 @@
             <div class="card-title">所有玩家</div>
             <div class="players-row" id="players-row"></div>
             <div class="vote-actions" id="vote-actions">
-                <button class="btn btn-primary" onclick="confirmVote()">确认投票</button>
-                <button class="btn btn-secondary" onclick="abstainVote()">弃票</button>
+                <button class="btn btn-primary" onclick="window.confirmVote()">确认投票</button>
+                <button class="btn btn-secondary" onclick="window.abstainVote()">弃票</button>
             </div>
             <div class="voted-message" id="voted-message">✓ 已完成投票</div>
         </div>
         
         <div class="card" id="vote-results-card" style="display:none">
             <div class="card-title">投票结果</div>
-            <div class="vote-results" id="vote-results"></div>
+            <div class="day-indicator" id="day-indicator">第 1 天</div>
+            <div class="swipe-container" id="swipe-container" ontouchstart="window.swipeStart(event)" ontouchmove="window.swipeMove(event)" ontouchend="window.swipeEnd(event)">
+                <div class="vote-results" id="vote-results"></div>
+            </div>
+            <div class="swipe-hint">← 左右滑动查看历史 →</div>
+        </div>
+        
+        <div class="modal" id="annotation-modal">
+            <div class="modal-content">
+                <div class="modal-title" id="annotation-title">标注身份</div>
+                <div class="annotation-grid">
+                    <button class="annotation-btn gold" onclick="window.setAnnotation('金')">金</button>
+                    <button class="annotation-btn gold" onclick="window.setAnnotation('银')">银</button>
+                    <button class="annotation-btn gold" onclick="window.setAnnotation('铜')">铜</button>
+                    <button class="annotation-btn god" onclick="window.setAnnotation('巫')">巫</button>
+                    <button class="annotation-btn god" onclick="window.setAnnotation('守')">守</button>
+                    <button class="annotation-btn god" onclick="window.setAnnotation('猎')">猎</button>
+                    <button class="annotation-btn wolf" onclick="window.setAnnotation('狼')">狼</button>
+                    <button class="annotation-btn villager" onclick="window.setAnnotation('民')">民</button>
+                    <button class="annotation-btn cancel" onclick="window.closeAnnotationModal()">取消</button>
+                </div>
+            </div>
         </div>
     </div>
     
-    <script src="js/config.js"></script>
     <script>
-        const { supabase, ROLES } = window.gameConfig;
-        
+        const SUPABASE_URL = 'https://opfzulpitspblasmybba.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_M3SmjoDJZ3PUyLH_nF3Awg_v8O-EG6i';
+        const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         let roomId = null;
         let secretKey = null;
         let roomData = null;
@@ -291,24 +447,28 @@
         let currentPlayer = null;
         let selectedTarget = null;
         let countdownInterval = null;
-        
+        let currentVoteDay = 1;
+        let swipeStartX = 0;
+        let swipeEndX = 0;
+        let annotations = {};
+        let annotationTarget = null;
+
         function getUrlParam(name) {
             const params = new URLSearchParams(window.location.search);
             return params.get(name);
         }
-        
+
         async function init() {
             roomId = getUrlParam('room');
             secretKey = getUrlParam('key');
             
             if (!roomId || !secretKey) {
                 alert('参数无效');
-                window.location.href = 'index-static.html';
+                window.location.href = 'index.html';
                 return;
             }
             
-            // 订阅实时更新
-            supabase.channel('room-' + roomId)
+            sbClient.channel('room-' + roomId)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, loadRoom)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` }, loadPlayers)
                 .on('postgres_changes', { event: '*', schema: 'public', table: 'votes', filter: `room_id=eq.${roomId}` }, loadVotes)
@@ -316,55 +476,100 @@
             
             await loadRoom();
             await loadPlayers();
+            await loadVotes();
         }
-        
+
+        function isVotingComplete() {
+            if (!roomData) return false;
+            if (roomData.phase !== 'voting' && roomData.phase !== 'pk') return true;
+            
+            if (roomData.vote_timer) {
+                const endTime = roomData.vote_timer + 10000;
+                if (Date.now() >= endTime) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+
         async function loadRoom() {
-            const { data } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+            const { data } = await sbClient.from('rooms').select('*').eq('id', roomId).single();
             roomData = data;
             if (roomData) {
                 document.getElementById('day-info').textContent = `第 ${roomData.current_day} 天`;
                 
-                if (roomData.phase === 'voting' || roomData.phase === 'pk') {
+                if ((roomData.phase === 'voting' || roomData.phase === 'pk') && !isVotingComplete()) {
                     showCountdown();
                 } else {
                     hideCountdown();
                 }
             }
+            await loadVotes();
         }
-        
+
         async function loadPlayers() {
-            const { data } = await supabase.from('players').select('*').eq('room_id', roomId).order('player_num');
+            const { data } = await sbClient.from('players').select('*').eq('room_id', roomId).order('player_num');
             players = data || [];
             
             currentPlayer = players.find(p => p.key === secretKey);
             if (!currentPlayer) {
                 alert('秘钥无效');
-                window.location.href = 'index-static.html';
+                window.location.href = 'index.html';
                 return;
             }
             
             renderRole();
             renderPlayers();
         }
-        
+
         async function loadVotes() {
             if (!roomData) return;
             
-            const { data } = await supabase.from('votes')
-                .select('*')
-                .eq('room_id', roomId)
-                .eq('day', roomData.current_day)
-                .eq('mode', roomData.pk_mode || 'normal');
+            if (currentVoteDay < 1) {
+                currentVoteDay = 1;
+            }
             
-            renderVoteResults(data || []);
+            const checkDayVotes = async (day) => {
+                const { data: pkVotes } = await sbClient.from('votes')
+                    .select('*')
+                    .eq('room_id', roomId)
+                    .eq('day', day)
+                    .eq('mode', 'pk');
+                
+                if (pkVotes && pkVotes.length > 0) {
+                    return pkVotes;
+                }
+                
+                const { data: normalVotes } = await sbClient.from('votes')
+                    .select('*')
+                    .eq('room_id', roomId)
+                    .eq('day', day)
+                    .eq('mode', 'normal');
+                
+                return normalVotes || [];
+            };
             
-            // 检查是否所有人都投票了
+            let votes = await checkDayVotes(currentVoteDay);
+            
+            if (!votes.length && currentVoteDay !== roomData.current_day) {
+                votes = await checkDayVotes(roomData.current_day);
+            }
+            
+            if (!votes.length && roomData.current_day > 1) {
+                votes = await checkDayVotes(roomData.current_day - 1);
+                currentVoteDay = roomData.current_day - 1;
+            }
+            
+            document.getElementById('day-indicator').textContent = `第 ${currentVoteDay} 天`;
+            renderVoteResults(votes);
+            
             const alivePlayers = players.filter(p => p.alive);
-            if (data && data.length >= alivePlayers.length && roomData.phase !== 'waiting') {
+            if (votes.length >= alivePlayers.length && roomData.phase !== 'waiting') {
                 hideCountdown();
             }
         }
-        
+
         function renderRole() {
             if (!currentPlayer) return;
             
@@ -382,40 +587,57 @@
             statusEl.className = 'alive-status ' + (currentPlayer.alive ? 'alive' : 'dead');
             statusEl.textContent = currentPlayer.alive ? '存活' : '已出局';
         }
-        
+
         function renderPlayers() {
             const container = document.getElementById('players-row');
-            const isVoting = roomData && (roomData.phase === 'voting' || roomData.phase === 'pk');
+            const isVoting = roomData && (roomData.phase === 'voting' || roomData.phase === 'pk') && !isVotingComplete();
+            const isWerewolf = currentPlayer && currentPlayer.team === 'werewolf';
             
             let html = '';
             players.forEach((p) => {
                 const isSelf = p.key === secretKey;
                 const canSelect = isVoting && currentPlayer && currentPlayer.alive && !currentPlayer.has_voted && p.alive && !isSelf;
+                const isWolfTeammate = isWerewolf && p.team === 'werewolf';
                 
-                const isPkTarget = roomData && roomData.phase === 'pk' && roomData.pk_targets && roomData.pk_targets.includes(p.player_num + '号');
-                const canSelectInPk = roomData && roomData.phase === 'pk' ? isPkTarget : true;
+                let canSelectInPk = true;
+                if (roomData && roomData.phase === 'pk') {
+                    const pkTargets = roomData.pk_targets || [];
+                    canSelectInPk = pkTargets.includes(p.player_num + '号');
+                }
                 
                 const classes = ['player-avatar'];
                 if (!p.alive) classes.push('dead');
-                if (isSelf) classes.push('self');
+                if (isWolfTeammate || (isWerewolf && isSelf)) classes.push('wolf-teammate');
+                else if (isSelf) classes.push('self');
                 if (canSelect && canSelectInPk) classes.push('can-vote');
                 if (selectedTarget === p.player_num + '号') classes.push('selected');
                 
-                const onclick = (canSelect && canSelectInPk) ? `onclick="selectPlayer('${p.player_num}号')"` : '';
+                const annotation = annotations[p.player_num];
+                let annotationHtml = '';
+                if (annotation) {
+                    const colorClass = annotation.team === 'gold' ? 'annotation-gold' :
+                                      (annotation.team === 'god' ? 'annotation-god' : 
+                                      (annotation.team === 'werewolf' ? 'annotation-wolf' : 'annotation-villager'));
+                    annotationHtml = `<span class="annotation ${colorClass}">${annotation.label}</span>`;
+                }
+                
+                const isSelfDestruct = p.vote_target === '自爆';
+                const sdBadge = isSelfDestruct ? '<span class="sd-badge">💥</span>' : '';
+                
+                const onclick = (canSelect && canSelectInPk) ? `onclick="window.selectPlayer('${p.player_num}号')"` : `onclick="window.showAnnotationMenu(${p.player_num})"`;
                 const displayText = isSelf ? '我' : p.player_num;
                 
-                html += `<div class="${classes.join(' ')}" ${onclick}>${displayText}</div>`;
+                html += `<div class="${classes.join(' ')}" ${onclick}>${displayText}${annotationHtml}${sdBadge}</div>`;
             });
             container.innerHTML = html;
             
-            // 显示投票按钮
             const voteActions = document.getElementById('vote-actions');
             const votedMessage = document.getElementById('voted-message');
             
             if (isVoting && currentPlayer && currentPlayer.alive && !currentPlayer.has_voted) {
                 voteActions.classList.add('show');
                 votedMessage.classList.remove('show');
-            } else if (currentPlayer && currentPlayer.has_voted) {
+            } else if (isVoting && currentPlayer && currentPlayer.has_voted) {
                 voteActions.classList.remove('show');
                 votedMessage.classList.add('show');
             } else {
@@ -423,20 +645,24 @@
                 votedMessage.classList.remove('show');
             }
         }
-        
-        function selectPlayer(name) {
+
+        window.selectPlayer = function(name) {
             selectedTarget = name;
             renderPlayers();
-        }
-        
-        async function confirmVote() {
+        };
+
+        window.confirmVote = async function() {
+            if (!currentPlayer || currentPlayer.has_voted) {
+                alert('你已经投过票了');
+                return;
+            }
+            
             if (!selectedTarget) {
                 alert('请选择投票对象');
                 return;
             }
             
-            // 保存投票
-            await supabase.from('votes').insert({
+            await sbClient.from('votes').insert({
                 room_id: roomId,
                 day: roomData.current_day,
                 mode: roomData.pk_mode || 'normal',
@@ -444,15 +670,22 @@
                 target: selectedTarget
             });
             
-            // 更新玩家状态
-            await supabase.from('players')
+            await sbClient.from('players')
                 .update({ has_voted: true, vote_target: selectedTarget })
                 .eq('id', currentPlayer.id);
-        }
-        
-        async function abstainVote() {
-            // 保存弃票
-            await supabase.from('votes').insert({
+            
+            currentPlayer.has_voted = true;
+            currentPlayer.vote_target = selectedTarget;
+            renderPlayers();
+        };
+
+        window.abstainVote = async function() {
+            if (!currentPlayer || currentPlayer.has_voted) {
+                alert('你已经投过票了');
+                return;
+            }
+            
+            await sbClient.from('votes').insert({
                 room_id: roomId,
                 day: roomData.current_day,
                 mode: roomData.pk_mode || 'normal',
@@ -460,12 +693,15 @@
                 target: '弃票'
             });
             
-            // 更新玩家状态
-            await supabase.from('players')
+            await sbClient.from('players')
                 .update({ has_voted: true, vote_target: '弃票' })
                 .eq('id', currentPlayer.id);
-        }
-        
+            
+            currentPlayer.has_voted = true;
+            currentPlayer.vote_target = '弃票';
+            renderPlayers();
+        };
+
         function showCountdown() {
             document.getElementById('countdown-bar').classList.add('show');
             document.getElementById('countdown-mode').textContent = roomData.pk_mode === 'pk' ? 'PK票进行中...' : '普票进行中...';
@@ -476,7 +712,6 @@
                 document.getElementById('pk-targets').textContent = '';
             }
             
-            // 倒计时
             if (countdownInterval) clearInterval(countdownInterval);
             
             const endTime = roomData.vote_timer + 10000;
@@ -491,35 +726,42 @@
                 }
             }, 200);
         }
-        
+
         function hideCountdown() {
             document.getElementById('countdown-bar').classList.remove('show');
             if (countdownInterval) {
                 clearInterval(countdownInterval);
                 countdownInterval = null;
             }
+            loadVotes();
         }
-        
+
         function renderVoteResults(votes) {
-            if (!votes.length) {
-                document.getElementById('vote-results-card').style.display = 'none';
-                return;
-            }
-            
-            // 检查是否所有人都投票了
-            const alivePlayers = players.filter(p => p.alive);
-            if (votes.length < alivePlayers.length) {
+            if (!votes.length && !players.length) {
                 document.getElementById('vote-results-card').style.display = 'none';
                 return;
             }
             
             document.getElementById('vote-results-card').style.display = 'block';
             
-            // 按目标分组
+            const isWerewolf = currentPlayer && currentPlayer.team === 'werewolf';
+            const wolfNumbers = isWerewolf ? players.filter(p => p.team === 'werewolf').map(p => p.player_num) : [];
+            
             const grouped = {};
+            const votedPlayers = new Set();
             votes.forEach(v => {
                 if (!grouped[v.target]) grouped[v.target] = [];
                 grouped[v.target].push(v.voter);
+                votedPlayers.add(v.voter);
+            });
+            
+            const alivePlayers = players.filter(p => p.alive);
+            alivePlayers.forEach(p => {
+                const playerName = p.player_num + '号';
+                if (!votedPlayers.has(playerName)) {
+                    if (!grouped['弃票']) grouped['弃票'] = [];
+                    grouped['弃票'].push(playerName);
+                }
             });
             
             let html = '';
@@ -528,17 +770,114 @@
                 html += '<div class="vote-row">';
                 
                 voters.forEach(v => {
-                    html += `<div class="vote-avatar">${v.replace('号', '')}</div>`;
+                    const num = parseInt(v.replace('号', ''));
+                    const isWolf = isWerewolf && wolfNumbers.includes(num);
+                    html += `<div class="vote-avatar ${isWolf ? 'wolf-vote' : ''}">${v.replace('号', '')}</div>`;
                 });
                 
                 html += `<span class="vote-arrow">→</span>`;
-                html += `<div class="vote-avatar ${isAbstain ? 'vote-abstain' : ''}">${isAbstain ? '弃' : target.replace('号', '')}</div>`;
+                const targetNum = parseInt(target.replace('号', ''));
+                const isTargetWolf = isWerewolf && wolfNumbers.includes(targetNum);
+                html += `<div class="vote-avatar ${isAbstain ? 'vote-abstain' : ''} ${isTargetWolf ? 'wolf-vote' : ''}">${isAbstain ? '弃' : target.replace('号', '')}</div>`;
                 html += '</div>';
             }
             
             document.getElementById('vote-results').innerHTML = html;
         }
-        
+
+        window.swipeStart = function(event) {
+            swipeStartX = event.touches[0].clientX;
+            document.getElementById('vote-results').style.transition = 'none';
+        };
+
+        window.swipeMove = function(event) {
+            swipeEndX = event.touches[0].clientX;
+            const diff = swipeEndX - swipeStartX;
+            const voteResults = document.getElementById('vote-results');
+            if (voteResults) {
+                voteResults.style.transform = `translateX(${diff}px)`;
+            }
+        };
+
+        window.swipeEnd = function() {
+            const diff = swipeEndX - swipeStartX;
+            const threshold = 50;
+            const voteResults = document.getElementById('vote-results');
+            
+            voteResults.style.transition = 'transform 0.3s ease';
+            
+            if (diff > threshold) {
+                if (currentVoteDay > 1) {
+                    voteResults.style.transform = 'translateX(100%)';
+                    setTimeout(() => {
+                        currentVoteDay--;
+                        loadVotes();
+                        voteResults.style.transform = 'translateX(0)';
+                    }, 300);
+                } else {
+                    voteResults.style.transform = 'translateX(0)';
+                }
+            } else if (diff < -threshold) {
+                if (currentVoteDay < roomData.current_day) {
+                    voteResults.style.transform = 'translateX(-100%)';
+                    setTimeout(() => {
+                        currentVoteDay++;
+                        loadVotes();
+                        voteResults.style.transform = 'translateX(0)';
+                    }, 300);
+                } else {
+                    voteResults.style.transform = 'translateX(0)';
+                }
+            } else {
+                voteResults.style.transform = 'translateX(0)';
+            }
+        };
+
+        window.showAnnotationMenu = function(playerNum) {
+            annotationTarget = playerNum;
+            const modal = document.getElementById('annotation-modal');
+            modal.classList.add('show');
+            modal.onclick = function(e) {
+                if (e.target === modal) {
+                    closeAnnotationModal();
+                }
+            };
+        };
+
+        window.closeAnnotationModal = function() {
+            document.getElementById('annotation-modal').classList.remove('show');
+            annotationTarget = null;
+        };
+
+        window.setAnnotation = function(label) {
+            if (!annotationTarget) return;
+            
+            const teamMap = {
+                '金': 'gold',
+                '银': 'gold',
+                '铜': 'gold',
+                '预': 'god',
+                '巫': 'god',
+                '守': 'god',
+                '猎': 'god',
+                '狼': 'werewolf',
+                '民': 'villager'
+            };
+            
+            const currentAnnotation = annotations[annotationTarget];
+            if (currentAnnotation && currentAnnotation.label === label) {
+                delete annotations[annotationTarget];
+            } else {
+                annotations[annotationTarget] = {
+                    label: label,
+                    team: teamMap[label] || 'villager'
+                };
+            }
+            
+            renderPlayers();
+            closeAnnotationModal();
+        };
+
         init();
     </script>
 </body>
