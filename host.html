@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>狼人杀 - 主持人</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 10px;
+            color: #333;
+            font-size: 14px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: #fff;
+            border-radius: 12px;
+        }
+        h1 {
+            font-size: 18px;
+            margin-bottom: 8px;
+        }
+        .room-info {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+        }
+        .info-item label {
+            font-size: 12px;
+            color: #666;
+            display: block;
+        }
+        .info-item span {
+            font-size: 16px;
+            font-weight: bold;
+        }
+        
+        .countdown-bar {
+            display: none;
+            background: linear-gradient(135deg, #1890ff 0%, #096dd9 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .countdown-bar.show {
+            display: block;
+        }
+        .countdown-number {
+            font-size: 36px;
+            font-weight: bold;
+        }
+        .countdown-text {
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .pk-targets {
+            font-size: 12px;
+            margin-top: 8px;
+            opacity: 0.9;
+        }
+        
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .card-title {
+            font-size: 13px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .vote-stats {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-item .number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #1890ff;
+        }
+        .stat-item .label {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+        }
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+        
+        .player-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+            gap: 10px;
+            padding: 5px 0;
+        }
+        .player-avatar {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border: 2px solid #e8e8e8;
+            cursor: pointer;
+            position: relative;
+        }
+        .player-avatar.dead {
+            opacity: 0.4;
+            background: #f5f5f5;
+        }
+        .player-avatar .num {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .player-avatar .role-icon {
+            font-size: 12px;
+        }
+        .player-avatar .check {
+            position: absolute;
+            top: -2px;
+            right: -2px;
+            width: 16px;
+            height: 16px;
+            background: #52c41a;
+            border-radius: 50%;
+            color: white;
+            font-size: 10px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+        .player-avatar.voted .check {
+            display: flex;
+        }
+        
+        .vote-results {
+            padding: 10px 0;
+        }
+        .vote-row {
+            display: flex;
+            align-items: center;
+            margin-bottom: 6px;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+        .vote-avatar {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            background: #f0f0f0;
+            border: 2px solid #d9d9d9;
+        }
+        .vote-arrow {
+            color: #999;
+            font-size: 12px;
+        }
+        .vote-abstain {
+            background: #fff7e6;
+            border-color: #ffc53d;
+            color: #d48806;
+        }
+        
+        .key-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+        .key-item {
+            font-size: 12px;
+            padding: 4px 8px;
+            background: #f5f5f5;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .key-item:active {
+            background: #e6f7ff;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            width: 100%;
+            max-width: 300px;
+            text-align: center;
+        }
+        .modal-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .modal-btns {
+            display: flex;
+            gap: 10px;
+        }
+        .modal-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        .modal-btn.primary {
+            background: #1890ff;
+            color: white;
+        }
+        .modal-btn.default {
+            background: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🐺 狼人杀</h1>
+            <div class="room-info">
+                <div class="info-item">
+                    <label>房间号</label>
+                    <span id="room-id"></span>
+                </div>
+                <div class="info-item">
+                    <label>当前</label>
+                    <span id="day-display">第 1 天</span>
+                </div>
+            </div>
+        </header>
+        
+        <div class="countdown-bar" id="countdown-bar">
+            <div class="countdown-number" id="countdown-number">10</div>
+            <div class="countdown-text" id="countdown-mode">普票进行中...</div>
+            <div class="pk-targets" id="pk-targets"></div>
+        </div>
+        
+        <div class="card">
+            <div class="vote-stats">
+                <div class="stat-item">
+                    <div class="number" id="voted-count">0</div>
+                    <div class="label">已投票</div>
+                </div>
+                <div class="stat-item">
+                    <div class="number" id="alive-count">0</div>
+                    <div class="label">存活</div>
+                </div>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" id="vote-btn" onclick="startVote('normal')">普票</button>
+                <button class="btn btn-secondary" id="pk-btn" onclick="startVote('pk')">PK票</button>
+                <button class="btn btn-secondary" onclick="nextDay()">下一天</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">玩家列表</div>
+            <div class="player-grid" id="player-grid"></div>
+        </div>
+        
+        <div class="card" id="vote-results-card" style="display:none">
+            <div class="card-title">投票结果</div>
+            <div class="vote-results" id="vote-results"></div>
+        </div>
+        
+        <div class="card">
+            <div class="card-title">分发秘钥</div>
+            <div class="key-list" id="key-list"></div>
+        </div>
+        
+        <div class="card">
+            <button class="btn btn-danger" onclick="resetGame()">结束本局，重新开始</button>
+        </div>
+    </div>
+    
+    <div class="modal" id="eliminate-modal">
+        <div class="modal-content">
+            <div class="modal-title" id="eliminate-title">淘汰玩家？</div>
+            <div class="modal-btns">
+                <button class="modal-btn default" onclick="closeModal()">取消</button>
+                <button class="modal-btn primary" onclick="confirmEliminate()">确定</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal" id="pk-modal">
+        <div class="modal-content">
+            <div class="modal-title">选择PK玩家</div>
+            <div class="player-grid" id="pk-grid"></div>
+            <div class="modal-btns" style="margin-top:15px">
+                <button class="modal-btn default" onclick="closePkModal()">取消</button>
+                <button class="modal-btn primary" onclick="confirmPk()">开始PK</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/config.js"></script>
+    <script>
+        const { supabase, ROLES } = window.gameConfig;
+        
+        let roomId = null;
+        let roomData = null;
+        let players = [];
+        let selectedPlayer = null;
+        let pkSelected = [];
+        let countdownInterval = null;
+        
+        // 获取URL参数
+        function getUrlParam(name) {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(name);
+        }
+        
+        // 初始化
+        async function init() {
+            roomId = getUrlParam('room');
+            if (!roomId) {
+                alert('房间号无效');
+                window.location.href = 'index-static.html';
+                return;
+            }
+            
+            document.getElementById('room-id').textContent = roomId;
+            
+            // 订阅实时更新
+            supabase.channel('room-' + roomId)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` }, loadRoom)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter: `room_id=eq.${roomId}` }, loadPlayers)
+                .on('postgres_changes', { event: '*', schema: 'public', table: 'votes', filter: `room_id=eq.${roomId}` }, loadVotes)
+                .subscribe();
+            
+            await loadRoom();
+            await loadPlayers();
+        }
+        
+        async function loadRoom() {
+            const { data } = await supabase.from('rooms').select('*').eq('id', roomId).single();
+            roomData = data;
+            if (roomData) {
+                document.getElementById('day-display').textContent = `第 ${roomData.current_day} 天`;
+                
+                if (roomData.phase === 'voting' || roomData.phase === 'pk') {
+                    showCountdown();
+                } else {
+                    hideCountdown();
+                }
+            }
+        }
+        
+        async function loadPlayers() {
+            const { data } = await supabase.from('players').select('*').eq('room_id', roomId).order('player_num');
+            players = data || [];
+            renderPlayers();
+            renderKeys();
+            updateStats();
+        }
+        
+        async function loadVotes() {
+            if (!roomData) return;
+            
+            const { data } = await supabase.from('votes')
+                .select('*')
+                .eq('room_id', roomId)
+                .eq('day', roomData.current_day)
+                .eq('mode', roomData.pk_mode || 'normal');
+            
+            renderVoteResults(data || []);
+            
+            // 检查是否所有人都投票了
+            const alivePlayers = players.filter(p => p.alive);
+            if (data && data.length >= alivePlayers.length && roomData.phase !== 'waiting') {
+                hideCountdown();
+            }
+        }
+        
+        function renderPlayers() {
+            const grid = document.getElementById('player-grid');
+            let html = '';
+            players.forEach(p => {
+                const classes = ['player-avatar'];
+                if (!p.alive) classes.push('dead');
+                if (p.has_voted) classes.push('voted');
+                
+                const teamColor = p.team === 'werewolf' ? '#ff4d4f' : (p.team === 'god' ? '#722ed1' : '#52c41a');
+                
+                html += `
+                    <div class="${classes.join(' ')}" onclick="selectEliminate(${p.player_num})" style="border-color: ${teamColor}">
+                        <div class="num">${p.player_num}号</div>
+                        <div class="role-icon">${p.role_icon}</div>
+                        <div class="check">✓</div>
+                    </div>
+                `;
+            });
+            grid.innerHTML = html;
+        }
+        
+        function renderKeys() {
+            const list = document.getElementById('key-list');
+            let html = '';
+            players.forEach(p => {
+                html += `<span class="key-item" onclick="copyKey('${p.player_num}', '${p.role_name}', '${p.key}')">${p.player_num}号 ${p.role_name} ${p.key}</span>`;
+            });
+            list.innerHTML = html;
+        }
+        
+        function copyKey(num, role, key) {
+            navigator.clipboard.writeText(key).then(() => {
+                alert(`${num}号 ${role} 秘钥已复制：${key}`);
+            });
+        }
+        
+        function updateStats() {
+            const alive = players.filter(p => p.alive).length;
+            const voted = players.filter(p => p.has_voted).length;
+            document.getElementById('alive-count').textContent = alive;
+            document.getElementById('voted-count').textContent = voted;
+        }
+        
+        function showCountdown() {
+            document.getElementById('countdown-bar').classList.add('show');
+            document.getElementById('countdown-mode').textContent = roomData.pk_mode === 'pk' ? 'PK票进行中...' : '普票进行中...';
+            
+            if (roomData.pk_mode === 'pk' && roomData.pk_targets && roomData.pk_targets.length > 0) {
+                document.getElementById('pk-targets').textContent = 'PK玩家：' + roomData.pk_targets.join('、');
+            } else {
+                document.getElementById('pk-targets').textContent = '';
+            }
+            
+            // 倒计时
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            let remaining = 10;
+            const endTime = roomData.vote_timer + 10000;
+            
+            countdownInterval = setInterval(() => {
+                remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+                document.getElementById('countdown-number').textContent = remaining;
+                
+                if (remaining <= 0) {
+                    clearInterval(countdownInterval);
+                    hideCountdown();
+                }
+            }, 200);
+        }
+        
+        function hideCountdown() {
+            document.getElementById('countdown-bar').classList.remove('show');
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+        }
+        
+        function renderVoteResults(votes) {
+            if (!votes.length) {
+                document.getElementById('vote-results-card').style.display = 'none';
+                return;
+            }
+            
+            document.getElementById('vote-results-card').style.display = 'block';
+            
+            // 按目标分组
+            const grouped = {};
+            votes.forEach(v => {
+                if (!grouped[v.target]) grouped[v.target] = [];
+                grouped[v.target].push(v.voter);
+            });
+            
+            let html = '';
+            for (const [target, voters] of Object.entries(grouped)) {
+                const isAbstain = target === '弃票';
+                html += '<div class="vote-row">';
+                
+                voters.forEach(v => {
+                    html += `<div class="vote-avatar">${v.replace('号', '')}</div>`;
+                });
+                
+                html += `<span class="vote-arrow">→</span>`;
+                html += `<div class="vote-avatar ${isAbstain ? 'vote-abstain' : ''}">${isAbstain ? '弃' : target.replace('号', '')}</div>`;
+                html += '</div>';
+            }
+            
+            document.getElementById('vote-results').innerHTML = html;
+        }
+        
+        async function startVote(mode) {
+            if (mode === 'pk') {
+                // 显示PK选择弹窗
+                pkSelected = [];
+                renderPkGrid();
+                document.getElementById('pk-modal').classList.add('show');
+            } else {
+                await beginVote('normal', []);
+            }
+        }
+        
+        function renderPkGrid() {
+            const grid = document.getElementById('pk-grid');
+            let html = '';
+            players.filter(p => p.alive).forEach(p => {
+                const selected = pkSelected.includes(p.player_num + '号');
+                html += `
+                    <div class="player-avatar ${selected ? 'voted' : ''}" onclick="togglePk(${p.player_num})" style="border-color: #1890ff">
+                        <div class="num">${p.player_num}号</div>
+                    </div>
+                `;
+            });
+            grid.innerHTML = html;
+        }
+        
+        function togglePk(num) {
+            const name = num + '号';
+            if (pkSelected.includes(name)) {
+                pkSelected = pkSelected.filter(n => n !== name);
+            } else {
+                pkSelected.push(name);
+            }
+            renderPkGrid();
+        }
+        
+        async function confirmPk() {
+            if (pkSelected.length < 2) {
+                alert('请至少选择2名玩家进行PK');
+                return;
+            }
+            closeModal();
+            await beginVote('pk', pkSelected);
+        }
+        
+        async function beginVote(mode, targets) {
+            // 重置玩家投票状态
+            await supabase.from('players')
+                .update({ has_voted: false, vote_target: null })
+                .eq('room_id', roomId);
+            
+            // 删除当天当模式的投票记录
+            await supabase.from('votes')
+                .delete()
+                .eq('room_id', roomId)
+                .eq('day', roomData.current_day)
+                .eq('mode', mode);
+            
+            // 更新房间状态
+            await supabase.from('rooms')
+                .update({
+                    phase: mode === 'pk' ? 'pk' : 'voting',
+                    pk_mode: mode,
+                    pk_targets: targets,
+                    vote_timer: Date.now()
+                })
+                .eq('id', roomId);
+        }
+        
+        function selectEliminate(num) {
+            selectedPlayer = num;
+            const player = players.find(p => p.player_num === num);
+            document.getElementById('eliminate-title').textContent = player.alive ? `淘汰 ${num}号？` : `复活 ${num}号？`;
+            document.getElementById('eliminate-modal').classList.add('show');
+        }
+        
+        async function confirmEliminate() {
+            closeModal();
+            const player = players.find(p => p.player_num === selectedPlayer);
+            if (player) {
+                await supabase.from('players')
+                    .update({ alive: !player.alive })
+                    .eq('id', player.id);
+            }
+        }
+        
+        function closeModal() {
+            document.getElementById('eliminate-modal').classList.remove('show');
+            document.getElementById('pk-modal').classList.remove('show');
+        }
+        
+        function closePkModal() {
+            document.getElementById('pk-modal').classList.remove('show');
+        }
+        
+        async function nextDay() {
+            if (!confirm('进入下一天？')) return;
+            
+            // 重置投票状态
+            await supabase.from('players')
+                .update({ has_voted: false, vote_target: null })
+                .eq('room_id', roomId);
+            
+            // 更新房间
+            await supabase.from('rooms')
+                .update({
+                    current_day: roomData.current_day + 1,
+                    phase: 'waiting',
+                    pk_mode: 'normal',
+                    pk_targets: []
+                })
+                .eq('id', roomId);
+            
+            document.getElementById('vote-results-card').style.display = 'none';
+        }
+        
+        async function resetGame() {
+            if (!confirm('结束本局并重新分配身份？')) return;
+            
+            // 收集现有角色配置
+            const { data: config } = await supabase.from('room_config').select('*').eq('room_id', roomId);
+            
+            let roleList = [];
+            config.forEach(c => {
+                for (let i = 0; i < c.count; i++) {
+                    roleList.push(c.role_id);
+                }
+            });
+            
+            // 随机打乱
+            roleList.sort(() => Math.random() - 0.5);
+            
+            // 更新玩家
+            for (let i = 0; i < players.length; i++) {
+                const roleId = roleList[i];
+                await supabase.from('players')
+                    .update({
+                        role: roleId,
+                        role_name: ROLES[roleId].name,
+                        role_icon: ROLES[roleId].icon,
+                        team: ROLES[roleId].team,
+                        alive: true,
+                        has_voted: false,
+                        vote_target: null
+                    })
+                    .eq('id', players[i].id);
+            }
+            
+            // 删除所有投票记录
+            await supabase.from('votes').delete().eq('room_id', roomId);
+            
+            // 重置房间
+            await supabase.from('rooms')
+                .update({
+                    current_day: 1,
+                    phase: 'waiting',
+                    pk_mode: 'normal',
+                    pk_targets: []
+                })
+                .eq('id', roomId);
+            
+            document.getElementById('vote-results-card').style.display = 'none';
+        }
+        
+        init();
+    </script>
+</body>
+</html>

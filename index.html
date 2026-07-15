@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>狼人杀</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            color: white;
+        }
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        h1 {
+            font-size: 24px;
+        }
+        
+        .card {
+            background: #fff;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .card-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 12px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .preset-btns {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .preset-btn {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            background: #f8f8f8;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .preset-btn.active {
+            border-color: #1890ff;
+            background: #e6f7ff;
+            color: #1890ff;
+        }
+        
+        .role-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+        }
+        .role-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px;
+            background: #f5f5f5;
+            border-radius: 8px;
+        }
+        .role-item .icon {
+            font-size: 16px;
+        }
+        .role-item .name {
+            font-size: 11px;
+            color: #666;
+        }
+        .role-count {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .role-count button {
+            width: 22px;
+            height: 22px;
+            border: none;
+            border-radius: 4px;
+            background: #ddd;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .role-count span {
+            width: 20px;
+            text-align: center;
+            font-size: 12px;
+        }
+        
+        .total-bar {
+            margin-top: 15px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+        }
+        
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        input:focus {
+            outline: none;
+            border-color: #1890ff;
+        }
+        
+        .btn {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        .btn-primary {
+            background: #1890ff;
+            color: white;
+        }
+        .btn-primary:disabled {
+            background: #ccc;
+        }
+        
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            z-index: 1000;
+        }
+        .modal.show {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            width: 100%;
+            max-width: 320px;
+            text-align: center;
+        }
+        .modal-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+        .modal-info {
+            background: #f5f5f5;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 15px;
+        }
+        .modal-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 5px 0;
+            font-size: 13px;
+        }
+        .modal-hint {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .modal-btn {
+            width: 100%;
+            padding: 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .modal-btn.primary {
+            background: #1890ff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">🐺</div>
+            <h1>狼人杀</h1>
+        </header>
+        
+        <!-- 创建房间卡片 -->
+        <div class="card">
+            <div class="card-title">创建房间</div>
+            <input type="password" id="create-password" placeholder="输入创建密码">
+            
+            <div class="preset-btns">
+                <button class="preset-btn" onclick="loadPreset('6')">6人</button>
+                <button class="preset-btn" onclick="loadPreset('9')">9人</button>
+                <button class="preset-btn" onclick="loadPreset('12')">12人</button>
+            </div>
+            
+            <div class="role-grid" id="role-grid"></div>
+            
+            <div class="total-bar">
+                总人数：<strong id="total-count">0</strong> 人
+            </div>
+            
+            <button class="btn btn-primary" id="create-btn" onclick="createRoom()">创建房间</button>
+        </div>
+        
+        <!-- 进入房间卡片 -->
+        <div class="card">
+            <div class="card-title">进入房间</div>
+            <input type="text" id="room-id" placeholder="房间号（3位数字）">
+            <input type="text" id="enter-key" placeholder="秘钥（玩家6位/管理员13544）">
+            <button class="btn btn-primary" onclick="enterRoom()">进入</button>
+        </div>
+    </div>
+    
+    <!-- 成功弹窗 -->
+    <div class="modal" id="success-modal">
+        <div class="modal-content">
+            <div class="modal-icon">🎉</div>
+            <div class="modal-title">房间创建成功！</div>
+            <div class="modal-info">
+                <div class="modal-row"><span>房间号</span><span id="modal-room"></span></div>
+            </div>
+            <p class="modal-hint">管理员密码：<strong>13544</strong></p>
+            <button class="modal-btn primary" onclick="enterHost()">进入主持人界面</button>
+        </div>
+    </div>
+    
+    <script src="js/config.js"></script>
+    <script>
+        const { supabase, ROLES, CREATE_PASSWORD, ADMIN_PASSWORD, generateRoomId, generateKey } = window.gameConfig;
+        
+        const roles = {
+            werewolf: 0, wolf_king: 0, white_wolf: 0, mechanical_wolf: 0, wolf_beauty: 0,
+            seer: 0, witch: 0, hunter: 0, guard: 0, knight: 0, medium: 0, idiot: 0,
+            villager: 0
+        };
+        
+        let createdRoomId = null;
+        
+        const presets = {
+            '6': { werewolf: 2, seer: 1, witch: 1, villager: 2 },
+            '9': { werewolf: 3, seer: 1, witch: 1, hunter: 1, villager: 3 },
+            '12': { werewolf: 4, seer: 1, witch: 1, hunter: 1, guard: 1, villager: 4 }
+        };
+        
+        // 初始化角色网格
+        function initRoleGrid() {
+            const grid = document.getElementById('role-grid');
+            let html = '';
+            for (const [id, role] of Object.entries(ROLES)) {
+                html += `
+                    <div class="role-item">
+                        <div>
+                            <span class="icon">${role.icon}</span>
+                            <span class="name">${role.name}</span>
+                        </div>
+                        <div class="role-count">
+                            <button onclick="adjustRole('${id}', -1)">-</button>
+                            <span id="count-${id}">0</span>
+                            <button onclick="adjustRole('${id}', 1)">+</button>
+                        </div>
+                    </div>
+                `;
+            }
+            grid.innerHTML = html;
+        }
+        
+        function adjustRole(id, delta) {
+            roles[id] = Math.max(0, roles[id] + delta);
+            document.getElementById(`count-${id}`).textContent = roles[id];
+            updateTotal();
+            // 清除预设选中状态
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+        }
+        
+        function updateTotal() {
+            const total = Object.values(roles).reduce((a, b) => a + b, 0);
+            document.getElementById('total-count').textContent = total;
+        }
+        
+        function loadPreset(name) {
+            // 重置
+            Object.keys(roles).forEach(r => {
+                roles[r] = 0;
+                document.getElementById(`count-${r}`).textContent = 0;
+            });
+            // 加载预设
+            const preset = presets[name];
+            if (preset) {
+                Object.entries(preset).forEach(([r, c]) => {
+                    roles[r] = c;
+                    document.getElementById(`count-${r}`).textContent = c;
+                });
+            }
+            updateTotal();
+            // 设置选中状态
+            document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+        
+        async function createRoom() {
+            const password = document.getElementById('create-password').value;
+            if (password !== CREATE_PASSWORD) {
+                alert('创建密码错误');
+                return;
+            }
+            
+            const total = Object.values(roles).reduce((a, b) => a + b, 0);
+            if (total < 3) {
+                alert('至少需要3名玩家');
+                return;
+            }
+            
+            // 生成房间号
+            let roomId;
+            let exists = true;
+            while (exists) {
+                roomId = generateRoomId();
+                const { data } = await supabase.from('rooms').select('id').eq('id', roomId).single();
+                exists = !!data;
+            }
+            
+            // 创建房间
+            const { error: roomError } = await supabase.from('rooms').insert({
+                id: roomId,
+                current_day: 1,
+                phase: 'waiting'
+            });
+            
+            if (roomError) {
+                alert('创建房间失败：' + roomError.message);
+                return;
+            }
+            
+            // 收集角色并随机打乱
+            let roleList = [];
+            for (const [id, count] of Object.entries(roles)) {
+                for (let i = 0; i < count; i++) {
+                    roleList.push(id);
+                }
+            }
+            roleList.sort(() => Math.random() - 0.5);
+            
+            // 创建玩家
+            const players = [];
+            for (let i = 0; i < roleList.length; i++) {
+                const roleId = roleList[i];
+                players.push({
+                    room_id: roomId,
+                    player_num: i + 1,
+                    key: generateKey(),
+                    role: roleId,
+                    role_name: ROLES[roleId].name,
+                    role_icon: ROLES[roleId].icon,
+                    team: ROLES[roleId].team,
+                    alive: true,
+                    has_voted: false,
+                    vote_target: null
+                });
+            }
+            
+            const { error: playerError } = await supabase.from('players').insert(players);
+            if (playerError) {
+                alert('创建玩家失败：' + playerError.message);
+                return;
+            }
+            
+            // 保存角色配置
+            const configData = Object.entries(roles)
+                .filter(([id, count]) => count > 0)
+                .map(([id, count]) => ({ room_id: roomId, role_id: id, count }));
+            
+            await supabase.from('room_config').insert(configData);
+            
+            createdRoomId = roomId;
+            document.getElementById('modal-room').textContent = roomId;
+            document.getElementById('success-modal').classList.add('show');
+        }
+        
+        function enterHost() {
+            window.location.href = `host.html?room=${createdRoomId}`;
+        }
+        
+        async function enterRoom() {
+            const roomId = document.getElementById('room-id').value.trim();
+            const key = document.getElementById('enter-key').value.trim();
+            
+            if (!roomId || !key) {
+                alert('请输入房间号和秘钥');
+                return;
+            }
+            
+            // 检查是否是管理员
+            if (key === ADMIN_PASSWORD) {
+                const { data: room } = await supabase.from('rooms').select('id').eq('id', roomId).single();
+                if (room) {
+                    window.location.href = `host.html?room=${roomId}`;
+                    return;
+                }
+                alert('房间不存在');
+                return;
+            }
+            
+            // 检查是否是玩家
+            const { data: player } = await supabase.from('players')
+                .select('*')
+                .eq('room_id', roomId)
+                .eq('key', key)
+                .single();
+            
+            if (player) {
+                window.location.href = `player.html?room=${roomId}&key=${key}`;
+            } else {
+                alert('秘钥无效');
+            }
+        }
+        
+        initRoleGrid();
+    </script>
+</body>
+</html>
