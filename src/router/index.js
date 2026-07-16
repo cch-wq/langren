@@ -24,7 +24,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory('/langren/'),
+  history: createWebHistory(),
   routes
 })
 
