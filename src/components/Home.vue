@@ -9,16 +9,6 @@
       <div class="card">
         <h2 class="card-title">进入游戏</h2>
         <div class="form-group">
-          <label class="form-label">房间号</label>
-          <input 
-            v-model="form.roomId" 
-            type="text" 
-            placeholder="请输入3位房间号"
-            class="form-input"
-            maxlength="3"
-          />
-        </div>
-        <div class="form-group">
           <label class="form-label">秘钥</label>
           <input 
             v-model="form.key" 
@@ -29,7 +19,7 @@
         </div>
         <button 
           @click="enterGame" 
-          :disabled="loading || !form.roomId || !form.key"
+          :disabled="loading || !form.key"
           class="action-btn primary-btn"
         >
           {{ loading ? '进入中...' : '进入' }}
@@ -53,28 +43,27 @@ const loading = ref(false)
 const ADMIN_PASSWORD = '13544'
 
 const form = reactive({
-  roomId: '',
   key: ''
 })
 
 const enterGame = async () => {
-  if (!form.roomId || !form.key) return
+  if (!form.key) return
   
   loading.value = true
   try {
     if (form.key === ADMIN_PASSWORD) {
-      const { data: room, error } = await supabase
+      const { data: rooms, error } = await supabase
         .from('rooms')
         .select('*')
-        .eq('id', form.roomId)
-        .single()
+        .order('created_at', { ascending: false })
+        .limit(1)
       
-      if (error || !room) {
-        alert('房间不存在')
+      if (error || !rooms || rooms.length === 0) {
+        alert('暂无房间，请先创建房间')
         return
       }
       
-      router.push(`/host/${form.roomId}`)
+      router.push(`/host?room=${rooms[0].id}`)
       return
     }
     
@@ -82,15 +71,14 @@ const enterGame = async () => {
       .from('players')
       .select('*')
       .eq('key', form.key)
-      .eq('room_id', form.roomId)
       .single()
     
     if (error || !player) {
-      alert('秘钥错误或房间号不正确')
+      alert('秘钥错误')
       return
     }
     
-    router.push(`/game?room=${form.roomId}&key=${form.key}`)
+    router.push(`/game?key=${form.key}`)
   } catch (error) {
     console.error('进入游戏失败:', error)
     alert('网络错误，请检查网络连接或稍后重试')

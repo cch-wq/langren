@@ -9,9 +9,16 @@
         </div>
       </div>
       
-      <div class="night-bar" v-if="gameData.phase === 'night' && countdown > 0">
-        <div class="countdown-number">{{ countdown }}</div>
+      <div class="countdown-bar" v-if="gameData.phase === 'night' && nightCountdown > 0">
+        <div class="countdown-icon">🌙</div>
+        <div class="countdown-number">{{ formatTime(nightCountdown) }}</div>
         <div class="countdown-text">夜间行动中...</div>
+      </div>
+      
+      <div class="countdown-bar speech-bar" v-if="gameData.speech_active && speechCountdown > 0">
+        <div class="countdown-icon">🎤</div>
+        <div class="countdown-number">{{ formatTime(speechCountdown) }}</div>
+        <div class="countdown-text">发言时间</div>
       </div>
       
       <div class="key-card card">
@@ -29,6 +36,28 @@
             </div>
           </div>
           <div class="key-tips">将秘钥发送给对应玩家，玩家输入秘钥即可进入游戏</div>
+        </div>
+      </div>
+      
+      <div class="card">
+        <div class="card-title">倒计时控制</div>
+        <div class="timer-controls">
+          <div class="timer-group">
+            <div class="timer-label">🌙 夜间倒计时</div>
+            <div class="timer-display">{{ formatTime(gameData.night_countdown) }}</div>
+            <div class="timer-buttons">
+              <button class="timer-btn" @click="adjustNightTime(-30)">-30秒</button>
+              <button class="timer-btn" @click="adjustNightTime(30)">+30秒</button>
+            </div>
+          </div>
+          <div class="timer-group">
+            <div class="timer-label">🎤 发言倒计时</div>
+            <div class="timer-display">{{ formatTime(gameData.speech_countdown) }}</div>
+            <div class="timer-buttons">
+              <button class="timer-btn" @click="adjustSpeechTime(-30)">-30秒</button>
+              <button class="timer-btn" @click="adjustSpeechTime(30)">+30秒</button>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -87,6 +116,16 @@
                   </div>
                 </div>
               </div>
+              
+              <div class="section-card" v-if="dayGroup.nightActions.length > 0">
+                <div class="section-title">夜间行动</div>
+                <div class="night-action-list">
+                  <div v-for="(action, index) in dayGroup.nightActions" :key="index" class="night-action-item">
+                    <span class="night-action-icon">{{ getNightActionIcon(action.action_type) }}</span>
+                    <span class="night-action-content">{{ getNightActionText(action) }}</span>
+                  </div>
+                </div>
+              </div>
             </div>
             
             <div v-if="timelineData.length === 0" class="empty-timeline">
@@ -119,6 +158,8 @@
           <el-button v-if="gameData.phase === 'voting'" type="warning" @click="endVote" class="control-btn">结束投票</el-button>
           <el-button v-if="gameData.phase === 'waiting'" type="danger" @click="enterNight" class="control-btn">进入夜间</el-button>
           <el-button v-if="gameData.phase === 'night'" type="success" @click="endNight" class="control-btn">结束夜间</el-button>
+          <el-button v-if="gameData.phase === 'waiting'" @click="startSpeech" class="control-btn">开始发言</el-button>
+          <el-button v-if="gameData.speech_active" type="warning" @click="stopSpeech" class="control-btn">停止发言</el-button>
           <el-button v-if="gameData.phase === 'waiting'" @click="nextDay" class="control-btn">下一天</el-button>
           <el-button v-if="gameData.phase === 'waiting'" type="danger" @click="resetGame" class="control-btn">结束本局</el-button>
         </div>
@@ -174,12 +215,17 @@ const gameData = ref({
   vote_timer: 0,
   vote_countdown: 10,
   night_timer: 0,
-  night_countdown: 60
+  night_countdown: 120,
+  speech_timer: 0,
+  speech_countdown: 180,
+  speech_active: false
 })
 const votesData = ref([])
 const checkResultsData = ref([])
 const dailyActionsData = ref([])
-const countdown = ref(0)
+const nightActionsData = ref([])
+const nightCountdown = ref(0)
+const speechCountdown = ref(0)
 
 let pollInterval = null
 let countdownInterval = null
@@ -213,7 +259,8 @@ const timelineData = computed(() => {
       day,
       votes: [],
       actions: [],
-      checks: []
+      checks: [],
+      nightActions: []
     }
   }
   
@@ -238,8 +285,20 @@ const timelineData = computed(() => {
     }
   }
   
+  for (const action of nightActionsData.value) {
+    if (days[action.day]) {
+      days[action.day].nightActions.push(action)
+    }
+  }
+  
   return Object.values(days).reverse()
 })
+
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
 
 const getActionIcon = (type) => {
   if (type === 'eliminate') return '⚔️'
@@ -255,6 +314,46 @@ const getActionText = (action) => {
     return `${action.player}（${action.role}）自爆出局`
   }
   return `${action.player}：${action.reason}`
+}
+
+const getNightActionIcon = (type) => {
+  if (type === 'kill') return '🗡️'
+  if (type === 'save') return '💚'
+  if (type === 'poison') return '💀'
+  if (type === 'guard') return '🛡️'
+  if (type === 'check') return '🔮'
+  return '🌙'
+}
+
+const getNightActionText = (action) => {
+  const roleNames = {
+    werewolf: '狼人',
+    wolf_king: '狼王',
+    white_wolf: '白狼王',
+    mechanical_wolf: '机械狼',
+    wolf_beauty: '狼美人',
+    witch: '女巫',
+    guard: '守卫',
+    seer: '预言家'
+  }
+  
+  const actorName = roleNames[action.role] || action.role
+  if (action.action_type === 'kill') {
+    return `${actorName}击杀${action.target_player_num}号`
+  }
+  if (action.action_type === 'save') {
+    return `女巫使用解药救${action.target_player_num}号`
+  }
+  if (action.action_type === 'poison') {
+    return `女巫使用毒药毒${action.target_player_num}号`
+  }
+  if (action.action_type === 'guard') {
+    return `守卫守护${action.target_player_num}号`
+  }
+  if (action.action_type === 'check') {
+    return `预言家查验${action.target_player_num}号，身份为：${action.result}`
+  }
+  return `${actorName}夜间行动`
 }
 
 const getRoleShortName = (role) => {
@@ -337,6 +436,15 @@ const loadGameData = async () => {
       dailyActionsData.value = actions
     }
     
+    const { data: nightActions, error: nightActionsError } = await supabase
+      .from('night_actions')
+      .select('*')
+      .eq('room_id', roomId.value)
+    
+    if (!nightActionsError && nightActions) {
+      nightActionsData.value = nightActions
+    }
+    
     updateCountdown()
   } catch (error) {
     console.error('加载游戏数据失败:', error)
@@ -346,12 +454,40 @@ const loadGameData = async () => {
 const updateCountdown = () => {
   if (gameData.value.phase === 'night') {
     const elapsed = Date.now() / 1000 - gameData.value.night_timer
-    countdown.value = Math.max(0, Math.ceil(gameData.value.night_countdown - elapsed))
-  } else if (gameData.value.phase === 'voting' || gameData.value.phase === 'pk') {
-    const elapsed = Date.now() / 1000 - gameData.value.vote_timer
-    countdown.value = Math.max(0, Math.ceil(gameData.value.vote_countdown - elapsed))
+    nightCountdown.value = Math.max(0, Math.ceil(gameData.value.night_countdown - elapsed))
   } else {
-    countdown.value = 0
+    nightCountdown.value = 0
+  }
+  
+  if (gameData.value.speech_active) {
+    const elapsed = Date.now() / 1000 - gameData.value.speech_timer
+    speechCountdown.value = Math.max(0, Math.ceil(gameData.value.speech_countdown - elapsed))
+  } else {
+    speechCountdown.value = 0
+  }
+}
+
+const adjustNightTime = async (delta) => {
+  const newTime = Math.max(30, gameData.value.night_countdown + delta)
+  try {
+    await supabase.from('rooms').update({
+      night_countdown: newTime
+    }).eq('id', roomId.value)
+    await loadGameData()
+  } catch (error) {
+    alert(error.message || '操作失败')
+  }
+}
+
+const adjustSpeechTime = async (delta) => {
+  const newTime = Math.max(30, gameData.value.speech_countdown + delta)
+  try {
+    await supabase.from('rooms').update({
+      speech_countdown: newTime
+    }).eq('id', roomId.value)
+    await loadGameData()
+  } catch (error) {
+    alert(error.message || '操作失败')
   }
 }
 
@@ -394,7 +530,27 @@ const enterNight = async () => {
     const { error } = await supabase.from('rooms').update({
       phase: 'night',
       night_timer: Date.now() / 1000,
-      night_countdown: 60
+      night_countdown: gameData.value.night_countdown
+    }).eq('id', roomId.value)
+    
+    if (error) throw error
+    
+    await supabase.from('players').update({
+      guard_last_night: false
+    }).eq('room_id', roomId.value).eq('role', 'guard')
+    
+    await loadGameData()
+  } catch (error) {
+    alert(error.message || '操作失败')
+  }
+}
+
+const endNight = async () => {
+  try {
+    await resolveNightActions()
+    
+    const { error } = await supabase.from('rooms').update({
+      phase: 'waiting'
     }).eq('id', roomId.value)
     
     if (error) throw error
@@ -404,10 +560,92 @@ const enterNight = async () => {
   }
 }
 
-const endNight = async () => {
+const resolveNightActions = async () => {
+  const { data: nightActions, error } = await supabase
+    .from('night_actions')
+    .select('*')
+    .eq('room_id', roomId.value)
+    .eq('day', gameData.value.current_day)
+  
+  if (error || !nightActions) return
+  
+  const killTargets = {}
+  const saveTargets = new Set()
+  const poisonTargets = new Set()
+  const guardTargets = new Set()
+  
+  for (const action of nightActions) {
+    if (action.action_type === 'kill' && action.target_player_num) {
+      killTargets[action.target_player_num] = (killTargets[action.target_player_num] || 0) + 1
+    } else if (action.action_type === 'save' && action.target_player_num) {
+      saveTargets.add(action.target_player_num)
+    } else if (action.action_type === 'poison' && action.target_player_num) {
+      poisonTargets.add(action.target_player_num)
+    } else if (action.action_type === 'guard' && action.target_player_num) {
+      guardTargets.add(action.target_player_num)
+    }
+  }
+  
+  const deadPlayers = []
+  
+  for (const [targetNum, count] of Object.entries(killTargets)) {
+    const num = parseInt(targetNum)
+    const isSaved = saveTargets.has(num)
+    const isGuarded = guardTargets.has(num)
+    
+    if (!isSaved && !isGuarded) {
+      deadPlayers.push(num)
+    }
+    
+    if (isSaved && isGuarded) {
+      deadPlayers.push(num)
+    }
+  }
+  
+  for (const num of poisonTargets) {
+    deadPlayers.push(num)
+  }
+  
+  const uniqueDead = [...new Set(deadPlayers)]
+  
+  for (const num of uniqueDead) {
+    const player = gameData.value.players.find(p => p.player_num === num)
+    if (player && player.alive) {
+      await supabase.from('players').update({
+        alive: false
+      }).eq('room_id', roomId.value).eq('player_num', num)
+      
+      await supabase.from('daily_actions').insert({
+        room_id: roomId.value,
+        day: gameData.value.current_day,
+        type: 'eliminate',
+        player: `${num}号`,
+        role: player.role_name,
+        reason: '夜间死亡'
+      })
+    }
+  }
+}
+
+const startSpeech = async () => {
   try {
     const { error } = await supabase.from('rooms').update({
-      phase: 'waiting'
+      speech_active: true,
+      speech_timer: Date.now() / 1000,
+      speech_countdown: gameData.value.speech_countdown
+    }).eq('id', roomId.value)
+    
+    if (error) throw error
+    await loadGameData()
+  } catch (error) {
+    alert(error.message || '操作失败')
+  }
+}
+
+const stopSpeech = async () => {
+  try {
+    const { error } = await supabase.from('rooms').update({
+      speech_active: false
     }).eq('id', roomId.value)
     
     if (error) throw error
@@ -516,7 +754,9 @@ const resetGame = async () => {
         team: rolesList[i].team,
         alive: true,
         has_voted: false,
-        vote_target: null
+        vote_target: null,
+        witch_potion: 2,
+        guard_last_night: false
       }).eq('room_id', roomId.value).eq('player_num', players[i].player_num)
       
       if (error) throw error
@@ -526,7 +766,8 @@ const resetGame = async () => {
       current_day: 1,
       phase: 'waiting',
       pk_mode: 'normal',
-      pk_targets: []
+      pk_targets: [],
+      speech_active: false
     }).eq('id', roomId.value)
     
     if (roomError) throw roomError
@@ -534,6 +775,7 @@ const resetGame = async () => {
     await supabase.from('votes').delete().eq('room_id', roomId.value)
     await supabase.from('check_results').delete().eq('room_id', roomId.value)
     await supabase.from('daily_actions').delete().eq('room_id', roomId.value)
+    await supabase.from('night_actions').delete().eq('room_id', roomId.value)
     
     await loadGameData()
   } catch (error) {
@@ -637,8 +879,8 @@ const revivePlayer = async () => {
 }
 
 onMounted(() => {
-  const pathParts = window.location.pathname.split('/')
-  roomId.value = pathParts[pathParts.length - 1]
+  const params = new URLSearchParams(window.location.search)
+  roomId.value = params.get('room')
   
   if (!roomId.value) {
     window.location.href = '/'
@@ -700,16 +942,28 @@ onUnmounted(() => {
 .phase-badge.pk { background: #e6a23c; color: #fff; }
 .phase-badge.night { background: #9b59b6; color: #fff; }
 
-.night-bar {
+.countdown-bar {
   background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
   border-radius: 12px;
   padding: 16px;
   text-align: center;
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.countdown-bar.speech-bar {
+  background: linear-gradient(90deg, #f56c6c 0%, #e6a23c 100%);
+}
+
+.countdown-icon {
+  font-size: 28px;
 }
 
 .countdown-number {
-  font-size: 48px;
+  font-size: 36px;
   font-weight: bold;
   color: #fff;
 }
@@ -810,6 +1064,53 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.7);
   font-size: 13px;
   text-align: center;
+}
+
+.timer-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.timer-group {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: center;
+}
+
+.timer-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.timer-display {
+  color: #fff;
+  font-size: 28px;
+  font-weight: bold;
+  margin-bottom: 12px;
+}
+
+.timer-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+}
+
+.timer-btn {
+  padding: 6px 16px;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.3s;
+}
+
+.timer-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
 .main-layout {
@@ -964,7 +1265,8 @@ onUnmounted(() => {
 
 .vote-list,
 .action-list,
-.check-list {
+.check-list,
+.night-action-list {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1031,6 +1333,22 @@ onUnmounted(() => {
 }
 
 .check-icon {
+  font-size: 14px;
+}
+
+.night-action-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+  border-left: 4px solid #9b59b6;
+}
+
+.night-action-icon {
   font-size: 14px;
 }
 
@@ -1201,6 +1519,10 @@ onUnmounted(() => {
   .control-btn {
     height: 40px;
     font-size: 13px;
+  }
+  
+  .countdown-number {
+    font-size: 28px;
   }
 }
 </style>

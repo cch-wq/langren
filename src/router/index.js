@@ -17,7 +17,7 @@ const routes = [
     component: () => import('../components/Game.vue')
   },
   {
-    path: '/host/:roomId',
+    path: '/host',
     name: 'Host',
     component: () => import('../components/Host.vue')
   }

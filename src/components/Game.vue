@@ -9,9 +9,16 @@
         </div>
       </div>
       
-      <div class="night-bar" v-if="gameData.phase === 'night' && countdown > 0">
-        <div class="countdown-number">{{ countdown }}</div>
+      <div class="countdown-bar" v-if="gameData.phase === 'night' && nightCountdown > 0">
+        <div class="countdown-icon">🌙</div>
+        <div class="countdown-number">{{ formatTime(nightCountdown) }}</div>
         <div class="countdown-text">夜间行动中...</div>
+      </div>
+      
+      <div class="countdown-bar speech-bar" v-if="gameData.speech_active && speechCountdown > 0">
+        <div class="countdown-icon">🎤</div>
+        <div class="countdown-number">{{ formatTime(speechCountdown) }}</div>
+        <div class="countdown-text">发言时间</div>
       </div>
       
       <div class="role-card">
@@ -22,12 +29,38 @@
         </div>
       </div>
       
-      <div class="card">
+      <div class="card" v-if="nightActionPanel.show">
+        <div class="card-header">
+          <div class="card-title">{{ nightActionPanel.title }}</div>
+          <div class="night-hint">{{ nightActionPanel.hint }}</div>
+        </div>
+        <div class="players-grid">
+          <div 
+            v-for="p in nightActionPanel.targets" 
+            :key="p.player_num"
+            class="player-avatar"
+            :class="{
+              'dead': !p.alive,
+              'self': isSelf(p),
+              'wolf-teammate': isWerewolf && p.team === 'werewolf',
+              'can-action': canNightAction(p),
+              'selected': selectedNightTarget === p.player_num
+            }"
+            @click="handleNightActionClick(p)"
+          >
+            <span class="player-number">{{ isSelf(p) ? '我' : p.player_num }}</span>
+          </div>
+        </div>
+        <div class="actions">
+          <el-button v-if="nightActionPanel.hasAction && selectedNightTarget" type="primary" @click="confirmNightAction" class="action-btn">确认{{ nightActionPanel.actionName }}</el-button>
+          <el-button v-if="nightActionPanel.hasAction && !selectedNightTarget" type="warning" @click="skipNightAction" class="action-btn">跳过行动</el-button>
+          <div v-if="nightActionPanel.completed" class="voted-message">✓ 已完成行动</div>
+        </div>
+      </div>
+      
+      <div class="card" v-if="!nightActionPanel.show">
         <div class="card-header">
           <div class="card-title">所有玩家</div>
-          <div class="night-hint" v-if="isSeer && gameData.phase === 'night' && !hasCheckedThisNight">
-            请选择你要查验的玩家：
-          </div>
           <div class="pk-hint" v-if="gameData.phase === 'pk' && gameData.pk_targets.length > 0">
             当前为 PK 投票，仅可投票给：{{ gameData.pk_targets.join('、') }}
           </div>
@@ -42,9 +75,7 @@
               'self': isSelf(p),
               'wolf-teammate': isWerewolf && p.team === 'werewolf',
               'can-vote': canVote(p),
-              'can-check': canCheck(p),
-              'selected': selectedTarget === p.player_num,
-              'checked': checkTarget === p.player_num
+              'selected': selectedTarget === p.player_num
             }"
             @click="handlePlayerClick(p)"
           >
@@ -55,10 +86,9 @@
           </div>
         </div>
         
-        <div class="actions" v-if="showVoteButton || showCheckButton || currentPlayer?.has_voted">
+        <div class="actions" v-if="showVoteButton || currentPlayer?.has_voted">
           <el-button v-if="showVoteButton" type="primary" @click="confirmVote" class="action-btn">确认投票</el-button>
           <el-button v-if="showVoteButton" @click="abstainVote" class="action-btn">弃票</el-button>
-          <el-button v-if="showCheckButton" type="primary" @click="confirmCheck" class="action-btn">确认查验</el-button>
           <div v-if="currentPlayer?.has_voted" class="voted-message">✓ 已完成投票</div>
         </div>
       </div>
@@ -102,6 +132,13 @@
           </div>
         </div>
       </div>
+      
+      <div class="card night-result-card" v-if="nightActionResult">
+        <div class="card-title">夜间结果</div>
+        <div class="night-result-content">
+          {{ nightActionResult }}
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -122,17 +159,22 @@ const gameData = ref({
   vote_timer: 0,
   vote_countdown: 10,
   night_timer: 0,
-  night_countdown: 60
+  night_countdown: 120,
+  speech_timer: 0,
+  speech_countdown: 180,
+  speech_active: false
 })
 const currentPlayer = ref(null)
 const selectedTarget = ref(null)
-const checkTarget = ref(null)
-const hasCheckedThisNight = ref(false)
+const selectedNightTarget = ref(null)
 const annotations = ref({})
-const countdown = ref(0)
+const nightCountdown = ref(0)
+const speechCountdown = ref(0)
 const votesData = ref([])
 const checkResultsData = ref([])
 const dailyActionsData = ref([])
+const nightActionsData = ref([])
+const nightActionResult = ref('')
 
 let pollInterval = null
 let countdownInterval = null
@@ -146,8 +188,14 @@ const phaseText = computed(() => {
   return phase
 })
 
-const isSeer = computed(() => currentPlayer.value?.role === 'seer')
 const isWerewolf = computed(() => currentPlayer.value?.team === 'werewolf')
+const isSeer = computed(() => currentPlayer.value?.role === 'seer')
+const isWitch = computed(() => currentPlayer.value?.role === 'witch')
+const isGuard = computed(() => currentPlayer.value?.role === 'guard')
+const isKnight = computed(() => currentPlayer.value?.role === 'knight')
+const isMedium = computed(() => currentPlayer.value?.role === 'medium')
+const hasPotion = computed(() => currentPlayer.value?.witch_potion > 0)
+const hasGuardPower = computed(() => !currentPlayer.value?.guard_last_night)
 
 const teamText = computed(() => {
   const team = currentPlayer.value?.team
@@ -162,12 +210,95 @@ const showVoteButton = computed(() => {
          !currentPlayer.value?.has_voted
 })
 
-const showCheckButton = computed(() => {
-  return gameData.value.phase === 'night' && 
-         isSeer.value && 
-         currentPlayer.value?.alive && 
-         hasCheckedThisNight.value === false &&
-         checkTarget.value
+const nightActionPanel = computed(() => {
+  if (gameData.value.phase !== 'night' || !currentPlayer.value?.alive) {
+    return { show: false }
+  }
+  
+  const role = currentPlayer.value.role
+  
+  if (isWerewolf.value) {
+    return {
+      show: true,
+      title: '🌙 狼人行动',
+      hint: '请选择击杀目标（绿色为狼队友）',
+      targets: gameData.value.players.filter(p => p.alive),
+      hasAction: true,
+      actionName: '击杀',
+      completed: hasNightActionCompleted('kill')
+    }
+  }
+  
+  if (isSeer.value) {
+    return {
+      show: true,
+      title: '🔮 预言家行动',
+      hint: '请选择查验目标',
+      targets: gameData.value.players.filter(p => p.alive && !isSelf(p)),
+      hasAction: true,
+      actionName: '查验',
+      completed: hasNightActionCompleted('check')
+    }
+  }
+  
+  if (isWitch.value) {
+    const potionCount = currentPlayer.value.witch_potion || 2
+    return {
+      show: true,
+      title: '🧙 女巫行动',
+      hint: `请选择使用解药或毒药（剩余药水：${potionCount}）`,
+      targets: gameData.value.players.filter(p => p.alive),
+      hasAction: potionCount > 0,
+      actionName: '使用药水',
+      completed: hasNightActionCompleted('save') || hasNightActionCompleted('poison')
+    }
+  }
+  
+  if (isGuard.value) {
+    return {
+      show: true,
+      title: '🛡️ 守卫行动',
+      hint: '请选择守护目标（不能连续两晚守护同一人）',
+      targets: gameData.value.players.filter(p => p.alive),
+      hasAction: true,
+      actionName: '守护',
+      completed: hasNightActionCompleted('guard')
+    }
+  }
+  
+  if (isKnight.value) {
+    return {
+      show: true,
+      title: '⚔️ 骑士行动',
+      hint: '请选择决斗目标',
+      targets: gameData.value.players.filter(p => p.alive && !isSelf(p)),
+      hasAction: true,
+      actionName: '决斗',
+      completed: hasNightActionCompleted('duel')
+    }
+  }
+  
+  if (isMedium.value) {
+    const deadPlayers = gameData.value.players.filter(p => !p.alive)
+    return {
+      show: deadPlayers.length > 0,
+      title: '👻 通灵师行动',
+      hint: '请选择查验死亡玩家身份',
+      targets: deadPlayers,
+      hasAction: deadPlayers.length > 0,
+      actionName: '通灵',
+      completed: hasNightActionCompleted('medium_check')
+    }
+  }
+  
+  return {
+    show: true,
+    title: '🌙 夜间',
+    hint: '等待天亮...',
+    targets: [],
+    hasAction: false,
+    completed: true
+  }
 })
 
 const timelineData = computed(() => {
@@ -201,6 +332,12 @@ const playerActions = computed(() => {
   return actions.filter(action => action.player === `${currentPlayer.value?.player_num}号`)
 })
 
+const formatTime = (seconds) => {
+  const mins = Math.floor(seconds / 60)
+  const secs = seconds % 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
 const isSelf = (p) => p.key === secretKey.value
 
 const canVote = (p) => {
@@ -217,13 +354,18 @@ const canVote = (p) => {
   return false
 }
 
-const canCheck = (p) => {
-  return !isSelf(p) && 
-         gameData.value.phase === 'night' && 
-         isSeer.value && 
-         currentPlayer.value?.alive && 
-         p.alive && 
-         hasCheckedThisNight.value === false
+const canNightAction = (p) => {
+  if (isSelf(p)) return false
+  if (!p.alive) return false
+  if (nightActionPanel.value.completed) return false
+  
+  const role = currentPlayer.value?.role
+  
+  if (isGuard.value && currentPlayer.value?.guard_last_night) {
+    return true
+  }
+  
+  return true
 }
 
 const annotationClass = (num) => {
@@ -249,11 +391,24 @@ const getActionText = (action) => {
   return `第${action.day}天：${action.reason}`
 }
 
+const hasNightActionCompleted = (actionType) => {
+  return nightActionsData.value.some(action => 
+    action.room_id === roomId.value &&
+    action.day === gameData.value.current_day &&
+    action.actor_player_num === currentPlayer.value?.player_num &&
+    action.action_type === actionType
+  )
+}
+
 const handlePlayerClick = (p) => {
   if (canVote(p)) {
     selectedTarget.value = p.player_num
-  } else if (canCheck(p)) {
-    checkTarget.value = p.player_num
+  }
+}
+
+const handleNightActionClick = (p) => {
+  if (canNightAction(p)) {
+    selectedNightTarget.value = p.player_num
   }
 }
 
@@ -312,33 +467,109 @@ const abstainVote = async () => {
   }
 }
 
-const confirmCheck = async () => {
-  if (!checkTarget.value || hasCheckedThisNight.value !== false) {
-    return
-  }
+const confirmNightAction = async () => {
+  if (!selectedNightTarget.value) return
   
-  const targetPlayer = gameData.value.players.find(p => p.player_num === checkTarget.value)
-  if (!targetPlayer) return
-  
-  const isWolf = targetPlayer.team === 'werewolf'
-  const result = isWolf ? '狼' : '金'
-  
-  annotations.value[checkTarget.value] = result
+  const role = currentPlayer.value?.role
+  let actionType = ''
+  let actionResult = ''
+  let result = ''
   
   try {
-    await supabase.from('check_results').insert({
+    if (isWerewolf.value) {
+      actionType = 'kill'
+      result = '狼人'
+    } else if (isSeer.value) {
+      actionType = 'check'
+      const targetPlayer = gameData.value.players.find(p => p.player_num === selectedNightTarget.value)
+      const isWolf = targetPlayer?.team === 'werewolf'
+      result = isWolf ? '狼' : '金'
+      annotations.value[selectedNightTarget.value] = result
+      actionResult = `查验${selectedNightTarget.value}号，身份为：${result}`
+      
+      await supabase.from('check_results').insert({
+        room_id: roomId.value,
+        day: gameData.value.current_day,
+        voter: `${currentPlayer.value?.player_num}号`,
+        target: `${selectedNightTarget.value}号`,
+        result: result
+      })
+    } else if (isWitch.value) {
+      const potionCount = currentPlayer.value?.witch_potion || 2
+      if (potionCount >= 2) {
+        actionType = 'save'
+        result = '解药'
+        actionResult = `使用解药救${selectedNightTarget.value}号`
+        
+        await supabase.from('players').update({
+          witch_potion: 1
+        }).eq('room_id', roomId.value).eq('key', secretKey.value)
+      } else {
+        actionType = 'poison'
+        result = '毒药'
+        actionResult = `使用毒药毒${selectedNightTarget.value}号`
+        
+        await supabase.from('players').update({
+          witch_potion: 0
+        }).eq('room_id', roomId.value).eq('key', secretKey.value)
+      }
+    } else if (isGuard.value) {
+      actionType = 'guard'
+      result = '守护'
+      actionResult = `守护${selectedNightTarget.value}号`
+      
+      await supabase.from('players').update({
+        guard_last_night: true
+      }).eq('room_id', roomId.value).eq('key', secretKey.value)
+    } else if (isKnight.value) {
+      actionType = 'duel'
+      const targetPlayer = gameData.value.players.find(p => p.player_num === selectedNightTarget.value)
+      const isWolf = targetPlayer?.team === 'werewolf'
+      result = isWolf ? '狼' : '好人'
+      actionResult = `决斗${selectedNightTarget.value}号，结果：${result}`
+    } else if (isMedium.value) {
+      actionType = 'medium_check'
+      const targetPlayer = gameData.value.players.find(p => p.player_num === selectedNightTarget.value)
+      result = targetPlayer?.role_name || '未知'
+      actionResult = `通灵${selectedNightTarget.value}号，身份为：${result}`
+    }
+    
+    await supabase.from('night_actions').insert({
       room_id: roomId.value,
       day: gameData.value.current_day,
-      voter: `${currentPlayer.value?.player_num}号`,
-      target: `${checkTarget.value}号`,
+      role: role,
+      actor_player_num: currentPlayer.value?.player_num,
+      target_player_num: selectedNightTarget.value,
+      action_type: actionType,
       result: result
     })
     
-    hasCheckedThisNight.value = true
-    checkTarget.value = null
+    if (actionResult) {
+      nightActionResult.value = actionResult
+    }
+    
+    selectedNightTarget.value = null
     await loadGameData()
   } catch (error) {
-    alert(error.message || '查验失败')
+    alert(error.message || '行动失败')
+  }
+}
+
+const skipNightAction = async () => {
+  try {
+    await supabase.from('night_actions').insert({
+      room_id: roomId.value,
+      day: gameData.value.current_day,
+      role: currentPlayer.value?.role,
+      actor_player_num: currentPlayer.value?.player_num,
+      action_type: 'skip',
+      result: '跳过'
+    })
+    
+    selectedNightTarget.value = null
+    await loadGameData()
+  } catch (error) {
+    alert(error.message || '操作失败')
   }
 }
 
@@ -377,12 +608,6 @@ const loadGameData = async () => {
       isInitialized.value = true
     }
     
-    if (gameData.value.phase === 'night') {
-      checkSeerStatus()
-    } else {
-      hasCheckedThisNight.value = false
-    }
-    
     const { data: votes, error: votesError } = await supabase
       .from('votes')
       .select('*')
@@ -399,6 +624,10 @@ const loadGameData = async () => {
     
     if (!checksError && checks) {
       checkResultsData.value = checks
+      checks.forEach(check => {
+        const targetNum = parseInt(check.target.replace('号', ''))
+        annotations.value[targetNum] = check.result
+      })
     }
     
     const { data: actions, error: actionsError } = await supabase
@@ -410,45 +639,34 @@ const loadGameData = async () => {
       dailyActionsData.value = actions
     }
     
+    const { data: nightActions, error: nightActionsError } = await supabase
+      .from('night_actions')
+      .select('*')
+      .eq('room_id', roomId.value)
+    
+    if (!nightActionsError && nightActions) {
+      nightActionsData.value = nightActions
+    }
+    
     updateCountdown()
   } catch (error) {
     console.error('加载游戏数据失败:', error)
   }
 }
 
-const checkSeerStatus = async () => {
-  if (!isSeer.value) {
-    hasCheckedThisNight.value = false
-    return
-  }
-  
-  try {
-    const { data: checks, error } = await supabase
-      .from('check_results')
-      .select('*')
-      .eq('room_id', roomId.value)
-      .eq('day', gameData.value.current_day)
-      .eq('voter', `${currentPlayer.value?.player_num}号`)
-    
-    if (!error && checks && checks.length > 0) {
-      hasCheckedThisNight.value = true
-    } else {
-      hasCheckedThisNight.value = false
-    }
-  } catch (error) {
-    hasCheckedThisNight.value = false
-  }
-}
-
 const updateCountdown = () => {
   if (gameData.value.phase === 'night') {
     const elapsed = Date.now() / 1000 - gameData.value.night_timer
-    countdown.value = Math.max(0, Math.ceil(gameData.value.night_countdown - elapsed))
-  } else if (gameData.value.phase === 'voting' || gameData.value.phase === 'pk') {
-    const elapsed = Date.now() / 1000 - gameData.value.vote_timer
-    countdown.value = Math.max(0, Math.ceil(gameData.value.vote_countdown - elapsed))
+    nightCountdown.value = Math.max(0, Math.ceil(gameData.value.night_countdown - elapsed))
   } else {
-    countdown.value = 0
+    nightCountdown.value = 0
+  }
+  
+  if (gameData.value.speech_active) {
+    const elapsed = Date.now() / 1000 - gameData.value.speech_timer
+    speechCountdown.value = Math.max(0, Math.ceil(gameData.value.speech_countdown - elapsed))
+  } else {
+    speechCountdown.value = 0
   }
 }
 
@@ -516,16 +734,28 @@ onUnmounted(() => {
 .phase-badge.pk { background: #e6a23c; color: #fff; }
 .phase-badge.night { background: #9b59b6; color: #fff; }
 
-.night-bar {
+.countdown-bar {
   background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
   border-radius: 12px;
   padding: 16px;
   text-align: center;
   margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.countdown-bar.speech-bar {
+  background: linear-gradient(90deg, #f56c6c 0%, #e6a23c 100%);
+}
+
+.countdown-icon {
+  font-size: 28px;
 }
 
 .countdown-number {
-  font-size: 48px;
+  font-size: 36px;
   font-weight: bold;
   color: #fff;
 }
@@ -648,13 +878,12 @@ onUnmounted(() => {
 }
 
 .player-avatar.can-vote,
-.player-avatar.can-check {
+.player-avatar.can-action {
   background: #67c23a;
   animation: pulse 1s infinite;
 }
 
-.player-avatar.selected,
-.player-avatar.checked {
+.player-avatar.selected {
   box-shadow: 0 0 0 4px #409eff;
 }
 
@@ -821,6 +1050,17 @@ onUnmounted(() => {
 
 .action-icon {
   font-size: 14px;
+}
+
+.night-result-card {
+  background: rgba(155, 89, 182, 0.2);
+}
+
+.night-result-content {
+  color: #fff;
+  font-size: 16px;
+  text-align: center;
+  padding: 12px;
 }
 
 @media (min-width: 768px) {
