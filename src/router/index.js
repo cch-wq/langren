@@ -20,6 +20,11 @@ const routes = [
     path: '/host',
     name: 'Host',
     component: () => import('../components/Host.vue')
+  },
+  {
+    path: '/host/:roomId',
+    name: 'HostWithId',
+    component: () => import('../components/Host.vue')
   }
 ]
 

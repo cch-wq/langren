@@ -162,7 +162,8 @@ const gameData = ref({
   night_countdown: 120,
   speech_timer: 0,
   speech_countdown: 180,
-  speech_active: false
+  speech_active: false,
+  witch_self_save: false
 })
 const currentPlayer = ref(null)
 const selectedTarget = ref(null)
@@ -243,11 +244,15 @@ const nightActionPanel = computed(() => {
   
   if (isWitch.value) {
     const potionCount = currentPlayer.value.witch_potion || 2
+    let targets = gameData.value.players.filter(p => p.alive)
+    if (!gameData.value.witch_self_save) {
+      targets = targets.filter(p => !isSelf(p))
+    }
     return {
       show: true,
       title: '🧙 女巫行动',
       hint: `请选择使用解药或毒药（剩余药水：${potionCount}）`,
-      targets: gameData.value.players.filter(p => p.alive),
+      targets: targets,
       hasAction: potionCount > 0,
       actionName: '使用药水',
       completed: hasNightActionCompleted('save') || hasNightActionCompleted('poison')

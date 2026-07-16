@@ -218,7 +218,8 @@ const gameData = ref({
   night_countdown: 120,
   speech_timer: 0,
   speech_countdown: 180,
-  speech_active: false
+  speech_active: false,
+  witch_self_save: false
 })
 const votesData = ref([])
 const checkResultsData = ref([])
@@ -767,7 +768,8 @@ const resetGame = async () => {
       phase: 'waiting',
       pk_mode: 'normal',
       pk_targets: [],
-      speech_active: false
+      speech_active: false,
+      witch_self_save: gameData.value.witch_self_save
     }).eq('id', roomId.value)
     
     if (roomError) throw roomError
@@ -879,8 +881,13 @@ const revivePlayer = async () => {
 }
 
 onMounted(() => {
-  const params = new URLSearchParams(window.location.search)
-  roomId.value = params.get('room')
+  const pathParams = window.location.pathname.split('/')
+  const pathRoomId = pathParams[pathParams.length - 1]
+  
+  const searchParams = new URLSearchParams(window.location.search)
+  const searchRoomId = searchParams.get('room')
+  
+  roomId.value = pathRoomId !== 'host' ? pathRoomId : searchRoomId
   
   if (!roomId.value) {
     window.location.href = '/'

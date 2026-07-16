@@ -50,6 +50,14 @@
             <span v-if="totalPlayers < 3" class="warning">（至少需要3名玩家）</span>
           </div>
           
+          <div class="roles-section">
+            <h3 class="section-title">游戏规则</h3>
+            <div class="rule-item">
+              <el-checkbox v-model="form.witchSelfSave">女巫可以自救</el-checkbox>
+              <span class="rule-hint">（默认不允许自救）</span>
+            </div>
+          </div>
+          
           <div class="button-group">
             <el-button type="primary" @click="createRoom" :loading="loading" :disabled="totalPlayers < 3" class="action-btn">创建房间</el-button>
             <el-button @click="goBack" class="action-btn">返回</el-button>
@@ -93,6 +101,7 @@ const villagerRoles = [
 
 const form = reactive({
   password: '',
+  witchSelfSave: false,
   roles: {
     werewolf: 3,
     wolf_king: 0,
@@ -151,7 +160,8 @@ const createRoom = async () => {
       current_day: 1,
       phase: 'waiting',
       pk_mode: 'normal',
-      pk_targets: []
+      pk_targets: [],
+      witch_self_save: form.witchSelfSave
     })
     
     if (roomError) throw roomError
@@ -290,13 +300,27 @@ const goBack = () => {
 }
 
 .total-players .warning {
-  color: #f56c6c;
-  font-size: 14px;
-  display: block;
-  margin-top: 4px;
-}
+    color: #f56c6c;
+    font-size: 14px;
+    display: block;
+    margin-top: 4px;
+  }
 
-.button-group {
+  .rule-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+  }
+
+  .rule-hint {
+    color: rgba(255, 255, 255, 0.5);
+    font-size: 12px;
+  }
+
+  .button-group {
   display: flex;
   gap: 12px;
 }

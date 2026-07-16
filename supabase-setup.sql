@@ -15,7 +15,8 @@ CREATE TABLE rooms (
     night_countdown INTEGER DEFAULT 120,
     speech_timer BIGINT DEFAULT 0,
     speech_countdown INTEGER DEFAULT 180,
-    speech_active BOOLEAN DEFAULT FALSE
+    speech_active BOOLEAN DEFAULT FALSE,
+    witch_self_save BOOLEAN DEFAULT FALSE
 );
 
 -- 2. 玩家表
