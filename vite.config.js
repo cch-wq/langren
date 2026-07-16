@@ -6,9 +6,9 @@ export default defineConfig({
   server: {
     port: 3000
   },
+  base: '/langren/',
   build: {
     outDir: 'dist',
-    assetsDir: 'assets',
-    base: '/langren/'
+    assetsDir: 'assets'
   }
 })
