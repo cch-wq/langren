@@ -25,8 +25,7 @@ export default defineConfig({
       output: {
         manualChunks: {
           'vendor': ['vue', 'vue-router'],
-          'supabase': ['@supabase/supabase-js'],
-          'element-plus': ['element-plus']
+          'supabase': ['@supabase/supabase-js']
         }
       }
     }
