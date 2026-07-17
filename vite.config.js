@@ -17,17 +17,9 @@ export default defineConfig({
   server: {
     port: 3000
   },
+  base: '/langren/',
   build: {
     outDir: 'dist',
-    assetsDir: 'assets',
-    base: '/langren/',
-    rollupOptions: {
-      output: {
-        manualChunks: {
-          'vendor': ['vue', 'vue-router'],
-          'supabase': ['@supabase/supabase-js']
-        }
-      }
-    }
+    assetsDir: 'assets'
   }
 })
