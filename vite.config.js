@@ -17,7 +17,7 @@ export default defineConfig({
   server: {
     port: 3000
   },
-  base: '/langren/',
+  base: process.env.NODE_ENV === 'production' ? '/langren/' : '/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets'
