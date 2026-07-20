@@ -2,7 +2,7 @@
   <div class="game">
     <div class="container">
       <div class="header">
-        <h1>🐺 狼人杀</h1>
+        <h1>game</h1>
         <div class="day-info">第 {{ gameData.current_day }} 天</div>
         <div class="phase-badge" :class="gameData.phase">
           {{ phaseText }}
@@ -58,59 +58,88 @@
         </div>
       </div>
       
-      <div class="card" v-if="!nightActionPanel.show">
-        <div class="card-header">
-          <div class="card-title">所有玩家</div>
-          <div class="pk-hint" v-if="gameData.phase === 'pk' && gameData.pk_targets.length > 0">
+      <div class="pk-hint" v-if="gameData.phase === 'pk' && gameData.pk_targets.length > 0">
             当前为 PK 投票，仅可投票给：{{ gameData.pk_targets.join('、') }}
           </div>
-        </div>
-        <div class="players-grid">
-          <div 
-            v-for="p in gameData.players" 
-            :key="p.player_num"
-            class="player-avatar"
-            :class="{
-              'dead': !p.alive,
-              'self': isSelf(p),
-              'wolf-teammate': isWerewolf && p.team === 'werewolf',
-              'can-vote': canVote(p),
-              'selected': selectedTarget === p.player_num
-            }"
-            @click="handlePlayerClick(p)"
-          >
-            <span class="player-number">{{ isSelf(p) ? '我' : p.player_num }}</span>
-            <span v-if="annotations[p.player_num]" class="annotation" :class="annotationClass(p.player_num)">
-              {{ annotations[p.player_num] }}
-            </span>
+        <div class="main-layout" v-if="!nightActionPanel.show">
+        <div class="players-panel left-panel">
+          <div class="panel-title">玩家列表</div>
+          <div class="player-grid">
+            <div 
+              v-for="p in leftPlayers" 
+              :key="p.player_num"
+              class="player-avatar"
+              :class="{
+                'dead': !p.alive,
+                'self': isSelf(p),
+                'wolf-teammate': isWerewolf && p.team === 'werewolf',
+                'can-vote': canVote(p),
+                'selected': selectedTarget === p.player_num
+              }"
+              @click="handlePlayerClick(p)"
+            >
+              <span class="player-number">{{ isSelf(p) ? '我' : p.player_num }}</span>
+              <span v-if="annotations[p.player_num]" class="annotation" :class="annotationClass(p.player_num)">
+                {{ annotations[p.player_num] }}
+              </span>
+            </div>
           </div>
         </div>
         
-        <div class="actions" v-if="showVoteButton || currentPlayer?.has_voted">
-          <el-button v-if="showVoteButton" type="primary" @click="confirmVote" class="action-btn">确认投票</el-button>
-          <el-button v-if="showVoteButton" @click="abstainVote" class="action-btn">弃票</el-button>
-          <div v-if="currentPlayer?.has_voted" class="voted-message">✓ 已完成投票</div>
+        <div class="timeline-panel">
+          <div class="panel-title">时间线</div>
+          <div class="timeline-scroll">
+            <div v-for="dayGroup in timelineData" :key="dayGroup.day" class="day-section">
+              <div class="day-header">
+                <span class="day-number">第{{ dayGroup.day }}天</span>
+              </div>
+              <div v-if="dayGroup.votes.length > 0" class="vote-list">
+                <div v-for="(vote, index) in dayGroup.votes" :key="index" class="vote-item">
+                  <span class="vote-voter">{{ vote.voter }}</span>
+                  <span class="vote-arrow">→</span>
+                  <span class="vote-target">{{ vote.target }}</span>
+                </div>
+              </div>
+              <div v-if="dayGroup.votes.length === 0" class="empty-vote">
+                暂无投票记录
+              </div>
+            </div>
+            <div v-if="timelineData.length === 0" class="empty-timeline">
+              暂无行动记录
+            </div>
+          </div>
+        </div>
+        
+        <div class="players-panel right-panel">
+          <div class="panel-title">玩家列表</div>
+          <div class="player-grid">
+            <div 
+              v-for="p in rightPlayers" 
+              :key="p.player_num"
+              class="player-avatar"
+              :class="{
+                'dead': !p.alive,
+                'self': isSelf(p),
+                'wolf-teammate': isWerewolf && p.team === 'werewolf',
+                'can-vote': canVote(p),
+                'selected': selectedTarget === p.player_num
+              }"
+              @click="handlePlayerClick(p)"
+            >
+              <span class="player-number">{{ isSelf(p) ? '我' : p.player_num }}</span>
+              <span v-if="annotations[p.player_num]" class="annotation" :class="annotationClass(p.player_num)">
+                {{ annotations[p.player_num] }}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
       
-      <div class="card" v-if="timelineData.length > 0">
-        <div class="card-title">投票结果</div>
-        <div class="timeline-scroll">
-          <div v-for="dayGroup in timelineData" :key="dayGroup.day" class="day-section">
-            <div class="day-header">
-              <span class="day-number">第{{ dayGroup.day }}天</span>
-            </div>
-            <div v-if="dayGroup.votes.length > 0" class="vote-list">
-              <div v-for="(vote, index) in dayGroup.votes" :key="index" class="vote-item">
-                <span class="vote-voter">{{ vote.voter }}</span>
-                <span class="vote-arrow">→</span>
-                <span class="vote-target">{{ vote.target }}</span>
-              </div>
-            </div>
-            <div v-if="dayGroup.votes.length === 0" class="empty-vote">
-              暂无投票记录
-            </div>
-          </div>
+      <div class="card" v-if="showVoteButton || currentPlayer?.has_voted">
+        <div class="actions">
+          <el-button v-if="showVoteButton" type="primary" @click="confirmVote" class="action-btn">确认投票</el-button>
+          <el-button v-if="showVoteButton" @click="abstainVote" class="action-btn">弃票</el-button>
+          <div v-if="currentPlayer?.has_voted" class="voted-message">✓ 已完成投票</div>
         </div>
       </div>
       
@@ -145,6 +174,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { supabase } from '../supabase'
 
 const roomId = ref('')
@@ -191,6 +221,18 @@ const phaseText = computed(() => {
 
 const isWerewolf = computed(() => currentPlayer.value?.team === 'werewolf')
 const isSeer = computed(() => currentPlayer.value?.role === 'seer')
+
+const leftPlayers = computed(() => {
+  const players = gameData.value.players
+  const mid = Math.ceil(players.length / 2)
+  return players.slice(0, mid)
+})
+
+const rightPlayers = computed(() => {
+  const players = gameData.value.players
+  const mid = Math.ceil(players.length / 2)
+  return players.slice(mid)
+})
 const isWitch = computed(() => currentPlayer.value?.role === 'witch')
 const isGuard = computed(() => currentPlayer.value?.role === 'guard')
 const isKnight = computed(() => currentPlayer.value?.role === 'knight')
@@ -438,7 +480,7 @@ const confirmVote = async () => {
       mode: gameData.value.pk_mode,
       voter: `${voterNum}号`,
       target: `${selectedTarget.value}号`
-    })
+    }).then(() => {}).catch(() => {})
     
     selectedTarget.value = null
     await loadGameData()
@@ -463,7 +505,7 @@ const abstainVote = async () => {
       mode: gameData.value.pk_mode,
       voter: `${voterNum}号`,
       target: 'abstain'
-    })
+    }).then(() => {}).catch(() => {})
     
     selectedTarget.value = null
     await loadGameData()
@@ -498,7 +540,7 @@ const confirmNightAction = async () => {
         voter: `${currentPlayer.value?.player_num}号`,
         target: `${selectedNightTarget.value}号`,
         result: result
-      })
+      }).then(() => {}).catch(() => {})
     } else if (isWitch.value) {
       const potionCount = currentPlayer.value?.witch_potion || 2
       if (potionCount >= 2) {
@@ -547,7 +589,7 @@ const confirmNightAction = async () => {
       target_player_num: selectedNightTarget.value,
       action_type: actionType,
       result: result
-    })
+    }).then(() => {}).catch(() => {})
     
     if (actionResult) {
       nightActionResult.value = actionResult
@@ -569,7 +611,7 @@ const skipNightAction = async () => {
       actor_player_num: currentPlayer.value?.player_num,
       action_type: 'skip',
       result: '跳过'
-    })
+    }).then(() => {}).catch(() => {})
     
     selectedNightTarget.value = null
     await loadGameData()
@@ -617,16 +659,14 @@ const loadGameData = async () => {
       .from('votes')
       .select('*')
       .eq('room_id', roomId.value)
-    
-    if (!votesError && votes) {
-      votesData.value = votes
-    }
+    if (votesError && votesError.code !== '404') console.warn('votes query error:', votesError)
+    if (!votesError && votes) votesData.value = votes
     
     const { data: checks, error: checksError } = await supabase
       .from('check_results')
       .select('*')
       .eq('room_id', roomId.value)
-    
+    if (checksError && checksError.code !== '404') console.warn('check_results query error:', checksError)
     if (!checksError && checks) {
       checkResultsData.value = checks
       checks.forEach(check => {
@@ -639,19 +679,15 @@ const loadGameData = async () => {
       .from('daily_actions')
       .select('*')
       .eq('room_id', roomId.value)
-    
-    if (!actionsError && actions) {
-      dailyActionsData.value = actions
-    }
+    if (actionsError && actionsError.code !== '404') console.warn('daily_actions query error:', actionsError)
+    if (!actionsError && actions) dailyActionsData.value = actions
     
     const { data: nightActions, error: nightActionsError } = await supabase
       .from('night_actions')
       .select('*')
       .eq('room_id', roomId.value)
-    
-    if (!nightActionsError && nightActions) {
-      nightActionsData.value = nightActions
-    }
+    if (nightActionsError && nightActionsError.code !== '404') console.warn('night_actions query error:', nightActionsError)
+    if (!nightActionsError && nightActions) nightActionsData.value = nightActions
     
     updateCountdown()
   } catch (error) {
@@ -675,9 +711,10 @@ const updateCountdown = () => {
   }
 }
 
+const route = useRoute()
+
 onMounted(() => {
-  const params = new URLSearchParams(window.location.search)
-  secretKey.value = params.get('key')
+  secretKey.value = route.query.key
   
   if (!secretKey.value) {
     window.location.href = '/'
@@ -838,15 +875,68 @@ onUnmounted(() => {
   margin-top: 8px;
 }
 
-.players-grid {
+.main-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
-  gap: 12px;
+  grid-template-columns: 90px 1fr 90px;
+  grid-template-rows: minmax(0, 1fr);
+  gap: 16px;
   margin-bottom: 16px;
+  height: 500px;
+  overflow: hidden;
+}
+
+.players-panel {
+  flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 12px 8px;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.panel-title {
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.players-panel .player-grid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 15px;
+}
+
+.timeline-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-radius: 16px;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.timeline-scroll {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.empty-timeline {
+  color: rgba(255, 255, 255, 0.5);
+  text-align: center;
+  padding: 40px 20px;
 }
 
 .player-avatar {
-  aspect-ratio: 1;
+  width: 60px;
+  height: 60px;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.2);
   display: flex;
@@ -1077,13 +1167,33 @@ onUnmounted(() => {
     font-size: 18px;
   }
   
-  .players-grid {
-    grid-template-columns: repeat(auto-fill, minmax(64px, 1fr));
-    gap: 16px;
+  .main-layout {
+    grid-template-columns: 1fr 2fr 1fr;
+    gap: 8px;
+    height: 400px;
+  }
+  
+  .players-panel {
+    padding: 8px 4px;
+    border-radius: 12px;
+  }
+  
+  .players-panel .player-grid {
+    gap: 8px;
+  }
+  
+  .timeline-panel {
+    flex: initial;
+    order: initial;
+  }
+  
+  .timeline-scroll {
+    overflow-y: auto;
   }
   
   .player-avatar {
-    min-height: 64px;
+    width: 50px;
+    height: 50px;
   }
   
   .player-number {

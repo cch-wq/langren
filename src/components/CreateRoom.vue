@@ -50,7 +50,7 @@
             <span v-if="totalPlayers < 3" class="warning">（至少需要3名玩家）</span>
           </div>
           
-          <div class="roles-section">
+          <div class="roles-section" v-if="false">
             <h3 class="section-title">游戏规则</h3>
             <div class="rule-item">
               <el-checkbox v-model="form.witchSelfSave">女巫可以自救</el-checkbox>
@@ -155,16 +155,42 @@ const createRoom = async () => {
   try {
     const roomId = generateRoomId()
     
-    const { error: roomError } = await supabase.from('rooms').insert({
+    const roomData = {
       id: roomId,
       current_day: 1,
       phase: 'waiting',
       pk_mode: 'normal',
       pk_targets: [],
-      witch_self_save: form.witchSelfSave
-    })
+      vote_timer: 0,
+      vote_countdown: 15,
+      night_timer: 0,
+      night_countdown: 90,
+      speech_timer: 0,
+      speech_countdown: 120,
+      speech_active: false
+    }
     
-    if (roomError) throw roomError
+    const { error: roomError } = await supabase.from('rooms').insert(roomData)
+    
+    if (roomError) {
+      if (roomError.code === '42703') {
+        console.warn('表结构不完整，尝试简化创建房间:', roomError.message)
+        const simpleRoomData = {
+          id: roomId,
+          current_day: 1,
+          phase: 'waiting',
+          pk_mode: 'normal',
+          pk_targets: [],
+          vote_timer: 0,
+          vote_countdown: 10,
+          night_timer: 0
+        }
+        const { error: simpleError } = await supabase.from('rooms').insert(simpleRoomData)
+        if (simpleError) throw simpleError
+      } else {
+        throw roomError
+      }
+    }
     
     const rolesList = []
     werewolfRoles.concat(godRoles, villagerRoles).forEach(role => {
@@ -263,6 +289,7 @@ const goBack = () => {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  justify-content: flex-start;
 }
 
 .role-item {
@@ -272,8 +299,7 @@ const goBack = () => {
   background: rgba(255, 255, 255, 0.05);
   padding: 10px 12px;
   border-radius: 8px;
-  flex: 1;
-  min-width: 120px;
+  min-width: 140px;
 }
 
 .role-icon {

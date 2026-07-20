@@ -9,16 +9,23 @@
         </div>
       </div>
       
-      <div class="countdown-bar" v-if="gameData.phase === 'night' && nightCountdown > 0">
-        <div class="countdown-icon">🌙</div>
-        <div class="countdown-number">{{ formatTime(nightCountdown) }}</div>
-        <div class="countdown-text">夜间行动中...</div>
-      </div>
-      
-      <div class="countdown-bar speech-bar" v-if="gameData.speech_active && speechCountdown > 0">
-        <div class="countdown-icon">🎤</div>
-        <div class="countdown-number">{{ formatTime(speechCountdown) }}</div>
-        <div class="countdown-text">发言时间</div>
+      <div class="timer-card card" v-if="currentTimer > 0 || timerMode !== 'none'">
+        <div class="timer-header">
+          <div class="timer-icon">{{ timerMode === 'night' ? '🌙' : timerMode === 'vote' ? '🗳️' : '🎤' }}</div>
+          <div class="timer-title">{{ timerMode === 'night' ? '夜间行动' : timerMode === 'vote' ? '投票时间' : '发言时间' }}</div>
+        </div>
+        <div class="timer-display">{{ formatTime(currentTimer) }}</div>
+        <div class="timer-settings">
+          <div class="timer-setting-item">
+            <span class="setting-label">设置时间：</span>
+            <input type="number" class="setting-input" v-model.number="currentCountdown" min="1" max="600" @change="updateCountdownSetting" />
+            <span class="setting-unit">秒</span>
+          </div>
+        </div>
+        <div class="timer-controls">
+          <button class="timer-btn" @click="startTimer">开始</button>
+          <button class="timer-btn" @click="resetTimer">重置</button>
+        </div>
       </div>
       
       <div class="key-card card">
@@ -36,28 +43,6 @@
             </div>
           </div>
           <div class="key-tips">将秘钥发送给对应玩家，玩家输入秘钥即可进入游戏</div>
-        </div>
-      </div>
-      
-      <div class="card">
-        <div class="card-title">倒计时控制</div>
-        <div class="timer-controls">
-          <div class="timer-group">
-            <div class="timer-label">🌙 夜间倒计时</div>
-            <div class="timer-display">{{ formatTime(gameData.night_countdown) }}</div>
-            <div class="timer-buttons">
-              <button class="timer-btn" @click="adjustNightTime(-30)">-30秒</button>
-              <button class="timer-btn" @click="adjustNightTime(30)">+30秒</button>
-            </div>
-          </div>
-          <div class="timer-group">
-            <div class="timer-label">🎤 发言倒计时</div>
-            <div class="timer-display">{{ formatTime(gameData.speech_countdown) }}</div>
-            <div class="timer-buttons">
-              <button class="timer-btn" @click="adjustSpeechTime(-30)">-30秒</button>
-              <button class="timer-btn" @click="adjustSpeechTime(30)">+30秒</button>
-            </div>
-          </div>
         </div>
       </div>
       
@@ -160,9 +145,16 @@
           <el-button v-if="gameData.phase === 'night'" type="success" @click="endNight" class="control-btn">结束夜间</el-button>
           <el-button v-if="gameData.phase === 'waiting'" @click="startSpeech" class="control-btn">开始发言</el-button>
           <el-button v-if="gameData.speech_active" type="warning" @click="stopSpeech" class="control-btn">停止发言</el-button>
-          <el-button v-if="gameData.phase === 'waiting'" @click="nextDay" class="control-btn">下一天</el-button>
           <el-button v-if="gameData.phase === 'waiting'" type="danger" @click="resetGame" class="control-btn">结束本局</el-button>
         </div>
+      </div>
+      
+      <div class="card danger-card">
+        <div class="card-title">⚠️ 危险操作</div>
+        <div class="control-buttons">
+          <el-button type="danger" @click="confirmDestroyRoom" class="control-btn destroy-btn">销毁房间</el-button>
+        </div>
+        <div class="danger-tip">销毁房间将删除所有相关数据，此操作不可撤销！</div>
       </div>
     </div>
     
@@ -200,7 +192,11 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { supabase } from '../supabase'
+
+const route = useRoute()
+const router = useRouter()
 
 const roomId = ref('')
 const showKeys = ref(false)
@@ -225,8 +221,9 @@ const votesData = ref([])
 const checkResultsData = ref([])
 const dailyActionsData = ref([])
 const nightActionsData = ref([])
-const nightCountdown = ref(0)
-const speechCountdown = ref(0)
+const currentTimer = ref(0)
+const timerMode = ref('none')
+const currentCountdown = ref(15)
 
 let pollInterval = null
 let countdownInterval = null
@@ -309,7 +306,7 @@ const getActionIcon = (type) => {
 
 const getActionText = (action) => {
   if (action.type === 'eliminate') {
-    return `${action.player}（${action.role}）被${action.reason}`
+    return `${action.player}被${action.reason}`
   }
   if (action.type === 'self_destruct') {
     return `${action.player}（${action.role}）自爆出局`
@@ -396,8 +393,20 @@ const loadGameData = async () => {
     }
     
     gameData.value = {
-      ...room,
-      players: []
+      players: [],
+      current_day: 1,
+      phase: 'waiting',
+      pk_mode: 'normal',
+      pk_targets: [],
+      vote_timer: 0,
+      vote_countdown: 10,
+      night_timer: 0,
+      night_countdown: 120,
+      speech_timer: 0,
+      speech_countdown: 180,
+      speech_active: false,
+      witch_self_save: false,
+      ...room
     }
     
     const { data: players, error: playersError } = await supabase
@@ -414,37 +423,29 @@ const loadGameData = async () => {
       .from('votes')
       .select('*')
       .eq('room_id', roomId.value)
-    
-    if (!votesError && votes) {
-      votesData.value = votes
-    }
+    if (votesError && votesError.code !== '404') console.warn('votes query error:', votesError)
+    if (!votesError && votes) votesData.value = votes
     
     const { data: checks, error: checksError } = await supabase
       .from('check_results')
       .select('*')
       .eq('room_id', roomId.value)
-    
-    if (!checksError && checks) {
-      checkResultsData.value = checks
-    }
+    if (checksError && checksError.code !== '404') console.warn('check_results query error:', checksError)
+    if (!checksError && checks) checkResultsData.value = checks
     
     const { data: actions, error: actionsError } = await supabase
       .from('daily_actions')
       .select('*')
       .eq('room_id', roomId.value)
-    
-    if (!actionsError && actions) {
-      dailyActionsData.value = actions
-    }
+    if (actionsError && actionsError.code !== '404') console.warn('daily_actions query error:', actionsError)
+    if (!actionsError && actions) dailyActionsData.value = actions
     
     const { data: nightActions, error: nightActionsError } = await supabase
       .from('night_actions')
       .select('*')
       .eq('room_id', roomId.value)
-    
-    if (!nightActionsError && nightActions) {
-      nightActionsData.value = nightActions
-    }
+    if (nightActionsError && nightActionsError.code !== '404') console.warn('night_actions query error:', nightActionsError)
+    if (!nightActionsError && nightActions) nightActionsData.value = nightActions
     
     updateCountdown()
   } catch (error) {
@@ -453,18 +454,58 @@ const loadGameData = async () => {
 }
 
 const updateCountdown = () => {
-  if (gameData.value.phase === 'night') {
+  if (gameData.value.phase === 'voting') {
+    timerMode.value = 'vote'
+    const elapsed = Date.now() / 1000 - gameData.value.vote_timer
+    const newTimer = Math.max(0, Math.ceil(gameData.value.vote_countdown - elapsed))
+    if (currentTimer.value > 0 && newTimer === 0) {
+      endVote()
+    }
+    currentTimer.value = newTimer
+  } else if (gameData.value.phase === 'night') {
+    timerMode.value = 'night'
     const elapsed = Date.now() / 1000 - gameData.value.night_timer
-    nightCountdown.value = Math.max(0, Math.ceil(gameData.value.night_countdown - elapsed))
+    const newTimer = Math.max(0, Math.ceil(gameData.value.night_countdown - elapsed))
+    if (currentTimer.value > 0 && newTimer === 0) {
+      endNight()
+    }
+    currentTimer.value = newTimer
+  } else if (gameData.value.speech_active) {
+    timerMode.value = 'speech'
+    const elapsed = Date.now() / 1000 - gameData.value.speech_timer
+    currentTimer.value = Math.max(0, Math.ceil(gameData.value.speech_countdown - elapsed))
   } else {
-    nightCountdown.value = 0
+    timerMode.value = 'none'
+    currentTimer.value = 0
   }
   
-  if (gameData.value.speech_active) {
-    const elapsed = Date.now() / 1000 - gameData.value.speech_timer
-    speechCountdown.value = Math.max(0, Math.ceil(gameData.value.speech_countdown - elapsed))
-  } else {
-    speechCountdown.value = 0
+  if (timerMode.value === 'vote') {
+    currentCountdown.value = gameData.value.vote_countdown
+  } else if (timerMode.value === 'night') {
+    currentCountdown.value = gameData.value.night_countdown
+  } else if (timerMode.value === 'speech') {
+    currentCountdown.value = gameData.value.speech_countdown
+  }
+}
+
+const updateCountdownSetting = async () => {
+  try {
+    if (timerMode.value === 'vote') {
+      await supabase.from('rooms').update({
+        vote_countdown: currentCountdown.value
+      }).eq('id', roomId.value)
+    } else if (timerMode.value === 'night') {
+      await supabase.from('rooms').update({
+        night_countdown: currentCountdown.value
+      }).eq('id', roomId.value)
+    } else if (timerMode.value === 'speech') {
+      await supabase.from('rooms').update({
+        speech_countdown: currentCountdown.value
+      }).eq('id', roomId.value)
+    }
+    await loadGameData()
+  } catch (error) {
+    alert(error.message || '操作失败')
   }
 }
 
@@ -492,11 +533,53 @@ const adjustSpeechTime = async (delta) => {
   }
 }
 
+const startTimer = async () => {
+  try {
+    if (timerMode.value === 'vote') {
+      await supabase.from('rooms').update({
+        vote_timer: Math.floor(Date.now() / 1000)
+      }).eq('id', roomId.value)
+    } else if (timerMode.value === 'night') {
+      await supabase.from('rooms').update({
+        night_timer: Math.floor(Date.now() / 1000)
+      }).eq('id', roomId.value)
+    } else if (timerMode.value === 'speech') {
+      await supabase.from('rooms').update({
+        speech_timer: Math.floor(Date.now() / 1000)
+      }).eq('id', roomId.value)
+    }
+    await loadGameData()
+  } catch (error) {
+    alert(error.message || '操作失败')
+  }
+}
+
+const resetTimer = async () => {
+  try {
+    if (timerMode.value === 'vote') {
+      await supabase.from('rooms').update({
+        vote_timer: 0
+      }).eq('id', roomId.value)
+    } else if (timerMode.value === 'night') {
+      await supabase.from('rooms').update({
+        night_timer: 0
+      }).eq('id', roomId.value)
+    } else if (timerMode.value === 'speech') {
+      await supabase.from('rooms').update({
+        speech_timer: 0
+      }).eq('id', roomId.value)
+    }
+    await loadGameData()
+  } catch (error) {
+    alert(error.message || '操作失败')
+  }
+}
+
 const startVote = async () => {
   try {
     const { error } = await supabase.from('rooms').update({
       phase: 'voting',
-      vote_timer: Date.now() / 1000,
+      vote_timer: Math.floor(Date.now() / 1000),
       vote_countdown: 10
     }).eq('id', roomId.value)
     
@@ -530,7 +613,7 @@ const enterNight = async () => {
   try {
     const { error } = await supabase.from('rooms').update({
       phase: 'night',
-      night_timer: Date.now() / 1000,
+      night_timer: Math.floor(Date.now() / 1000),
       night_countdown: gameData.value.night_countdown
     }).eq('id', roomId.value)
     
@@ -551,7 +634,8 @@ const endNight = async () => {
     await resolveNightActions()
     
     const { error } = await supabase.from('rooms').update({
-      phase: 'waiting'
+      phase: 'waiting',
+      current_day: gameData.value.current_day + 1
     }).eq('id', roomId.value)
     
     if (error) throw error
@@ -632,7 +716,7 @@ const startSpeech = async () => {
   try {
     const { error } = await supabase.from('rooms').update({
       speech_active: true,
-      speech_timer: Date.now() / 1000,
+      speech_timer: Math.floor(Date.now() / 1000),
       speech_countdown: gameData.value.speech_countdown
     }).eq('id', roomId.value)
     
@@ -768,8 +852,7 @@ const resetGame = async () => {
       phase: 'waiting',
       pk_mode: 'normal',
       pk_targets: [],
-      speech_active: false,
-      witch_self_save: gameData.value.witch_self_save
+      speech_active: false
     }).eq('id', roomId.value)
     
     if (roomError) throw roomError
@@ -782,6 +865,25 @@ const resetGame = async () => {
     await loadGameData()
   } catch (error) {
     alert(error.message || '操作失败')
+  }
+}
+
+const confirmDestroyRoom = async () => {
+  if (!confirm('⚠️ 警告：此操作将永久销毁房间及所有相关数据！')) return
+  if (!confirm('❌ 再次确认：销毁后无法恢复，确定要继续吗？')) return
+  
+  try {
+    await supabase.from('votes').delete().eq('room_id', roomId.value)
+    await supabase.from('check_results').delete().eq('room_id', roomId.value)
+    await supabase.from('daily_actions').delete().eq('room_id', roomId.value)
+    await supabase.from('night_actions').delete().eq('room_id', roomId.value)
+    await supabase.from('players').delete().eq('room_id', roomId.value)
+    await supabase.from('rooms').delete().eq('id', roomId.value)
+    
+    alert('房间已成功销毁')
+    router.push('/')
+  } catch (error) {
+    alert('销毁失败：' + error.message)
   }
 }
 
@@ -881,16 +983,10 @@ const revivePlayer = async () => {
 }
 
 onMounted(() => {
-  const pathParams = window.location.pathname.split('/')
-  const pathRoomId = pathParams[pathParams.length - 1]
-  
-  const searchParams = new URLSearchParams(window.location.search)
-  const searchRoomId = searchParams.get('room')
-  
-  roomId.value = pathRoomId !== 'host' ? pathRoomId : searchRoomId
+  roomId.value = route.params.roomId || route.query.room
   
   if (!roomId.value) {
-    window.location.href = '/'
+    router.push('/')
     return
   }
   
@@ -949,34 +1045,98 @@ onUnmounted(() => {
 .phase-badge.pk { background: #e6a23c; color: #fff; }
 .phase-badge.night { background: #9b59b6; color: #fff; }
 
-.countdown-bar {
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-  border-radius: 12px;
-  padding: 16px;
+.timer-card {
   text-align: center;
-  margin-bottom: 16px;
+  padding: 20px;
+}
+
+.timer-header {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 12px;
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
-.countdown-bar.speech-bar {
-  background: linear-gradient(90deg, #f56c6c 0%, #e6a23c 100%);
+.timer-icon {
+  font-size: 24px;
 }
 
-.countdown-icon {
-  font-size: 28px;
-}
-
-.countdown-number {
-  font-size: 36px;
+.timer-title {
+  font-size: 16px;
   font-weight: bold;
   color: #fff;
 }
 
-.countdown-text {
-  color: rgba(255, 255, 255, 0.9);
+.timer-display {
+  font-size: 48px;
+  font-weight: bold;
+  color: #fff;
+  margin-bottom: 16px;
+  font-family: 'Courier New', monospace;
+}
+
+.timer-card .timer-controls {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.timer-card .timer-btn {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.timer-card .timer-btn:first-child {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+}
+
+.timer-card .timer-btn:last-child {
+  background: linear-gradient(135deg, #f56c6c 0%, #e6a23c 100%);
+  color: #fff;
+}
+
+.timer-settings {
+  margin: 12px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.timer-setting-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setting-label {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 14px;
+}
+
+.setting-input {
+  width: 80px;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 14px;
+  text-align: center;
+}
+
+.setting-input:focus {
+  outline: none;
+  border-color: #667eea;
+}
+
+.setting-unit {
+  color: rgba(255, 255, 255, 0.8);
   font-size: 14px;
 }
 
@@ -1121,18 +1281,23 @@ onUnmounted(() => {
 }
 
 .main-layout {
-  display: flex;
+  display: grid;
+  grid-template-columns: 90px 1fr 90px;
+  grid-template-rows: minmax(0, 1fr);
   gap: 16px;
   margin-bottom: 16px;
+  height: 500px;
+  overflow: hidden;
 }
 
 .players-panel {
-  width: 90px;
   flex-shrink: 0;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border-radius: 16px;
   padding: 12px 8px;
+  overflow: hidden;
+  min-height: 0;
 }
 
 .panel-title {
@@ -1212,17 +1377,21 @@ onUnmounted(() => {
 }
 
 .timeline-panel {
-  flex: 2;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
+  min-height: 0;
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(10px);
   border-radius: 16px;
   padding: 16px;
+  overflow: hidden;
 }
 
 .timeline-scroll {
-  max-height: 600px;
+  flex: 1;
   overflow-y: auto;
+  min-height: 0;
 }
 
 .timeline-scroll::-webkit-scrollbar {
@@ -1376,6 +1545,31 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
+.danger-card {
+  background: rgba(255, 77, 79, 0.1);
+  border: 1px solid rgba(255, 77, 79, 0.3);
+}
+
+.danger-card .card-title {
+  color: #ff4d4f;
+}
+
+.destroy-btn {
+  background: linear-gradient(135deg, #ff4d4f, #ff7875);
+  border: none;
+}
+
+.destroy-btn:hover {
+  background: linear-gradient(135deg, #d9363e, #ff4d4f) !important;
+}
+
+.danger-tip {
+  text-align: center;
+  color: rgba(255, 77, 79, 0.7);
+  font-size: 12px;
+  margin-top: 8px;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1472,64 +1666,104 @@ onUnmounted(() => {
 
 @media (max-width: 768px) {
   .main-layout {
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: 1fr 2fr 1fr;
+    grid-template-rows: minmax(0, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+    height: 400px;
+    overflow: hidden;
   }
   
   .players-panel {
-    flex: none;
-  }
-  
-  .timeline-panel {
-    flex: none;
+    width: auto;
+    flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border-radius: 12px;
+    padding: 8px 4px;
+    overflow: hidden;
   }
   
   .players-panel.left-panel,
   .players-panel.right-panel {
-    order: 1;
+    order: initial;
+    width: auto;
+  }
+  
+  .players-panel.right-panel {
+    display: block;
+  }
+  
+  .player-grid {
+    gap: 8px;
+  }
+  
+  .player-circle {
+    width: 45px;
+    height: 45px;
+  }
+  
+  .circle-number {
+    font-size: 18px;
+  }
+  
+  .role-badge {
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
+  }
+  
+  .panel-title {
+    font-size: 12px;
+    margin-bottom: 8px;
   }
   
   .timeline-panel {
-    order: 2;
+    flex: initial;
+    order: initial;
   }
   
-  .player-list {
-    flex-direction: row;
-    flex-wrap: wrap;
-    justify-content: center;
-  }
-  
-  .player-item {
-    min-width: 100px;
-    justify-content: center;
-  }
-  
-  .player-role {
-    display: none;
+  .timeline-scroll {
+    overflow-y: auto;
   }
   
   .header h1 {
-    font-size: 20px;
+    font-size: 18px;
   }
   
   .day-info {
-    font-size: 14px;
-  }
-  
-  .card {
-    padding: 12px;
-  }
-  
-  .card-title {
-    font-size: 16px;
-  }
-  
-  .control-btn {
-    height: 40px;
     font-size: 13px;
   }
   
+  .card {
+    padding: 10px;
+  }
+  
+  .card-title {
+    font-size: 14px;
+  }
+  
+  .control-btn {
+    height: 36px;
+    font-size: 12px;
+  }
+  
   .countdown-number {
-    font-size: 28px;
+    font-size: 24px;
+  }
+  
+  .timer-controls {
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  
+  .timer-group {
+    padding: 8px;
+  }
+  
+  .timer-display {
+    font-size: 20px;
   }
 }
 </style>

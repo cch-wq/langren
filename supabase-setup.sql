@@ -8,13 +8,13 @@ CREATE TABLE rooms (
     current_day INTEGER DEFAULT 1,
     phase TEXT DEFAULT 'waiting',
     vote_timer BIGINT DEFAULT 0,
-    vote_countdown INTEGER DEFAULT 10,
+    vote_countdown INTEGER DEFAULT 15,
     pk_mode TEXT DEFAULT 'normal',
     pk_targets TEXT[] DEFAULT '{}',
     night_timer BIGINT DEFAULT 0,
-    night_countdown INTEGER DEFAULT 120,
+    night_countdown INTEGER DEFAULT 90,
     speech_timer BIGINT DEFAULT 0,
-    speech_countdown INTEGER DEFAULT 180,
+    speech_countdown INTEGER DEFAULT 120,
     speech_active BOOLEAN DEFAULT FALSE,
     witch_self_save BOOLEAN DEFAULT FALSE
 );
@@ -97,6 +97,8 @@ CREATE TABLE room_config (
 CREATE INDEX idx_players_room ON players(room_id);
 CREATE INDEX idx_players_key ON players(key);
 CREATE INDEX idx_votes_room ON votes(room_id, day, mode);
+CREATE INDEX idx_check_results_room ON check_results(room_id, day);
+CREATE INDEX idx_daily_actions_room ON daily_actions(room_id, day);
 CREATE INDEX idx_room_config_room ON room_config(room_id);
 CREATE INDEX idx_night_actions_room ON night_actions(room_id, day);
 
@@ -104,4 +106,6 @@ CREATE INDEX idx_night_actions_room ON night_actions(room_id, day);
 ALTER PUBLICATION supabase_realtime ADD TABLE rooms;
 ALTER PUBLICATION supabase_realtime ADD TABLE players;
 ALTER PUBLICATION supabase_realtime ADD TABLE votes;
+ALTER PUBLICATION supabase_realtime ADD TABLE check_results;
+ALTER PUBLICATION supabase_realtime ADD TABLE daily_actions;
 ALTER PUBLICATION supabase_realtime ADD TABLE night_actions;
