@@ -134,6 +134,30 @@ npm run dev
 - 推送到 `main` → Cloudflare 自动 build + deploy
 - 前端和 functions 一起部署（functions 目录会被自动识别）
 
+### 如果推代码后没有自动部署（常见问题）
+
+有时候 Cloudflare Pages 会因为各种原因没有触发自动部署。检查以下几点：
+
+1. **检查分支控制配置**
+   - Pages 项目 → Settings → Build & deployments → **分支控制** / **Branch control**
+   - 确认 **生产分支** / **Production branch** 设置为 `main`
+   - 如果之前是 `main` 后来改了分支名，需要在这里改回来
+
+2. **手动触发一次部署**
+   - 最简单的方法：在项目目录执行一次空推送
+   ```bash
+   # 在项目目录执行
+   git commit --allow-empty -m "触发重新部署"
+   git push
+   ```
+   这会产生一个空 commit，触发 Pages 重新构建。
+
+3. **如果还不行，手动重试**
+   - Pages 项目 → **部署** 标签
+   - 最新的部署 → 右侧 `...` → **重试部署**
+   - 但注意：重试部署用的是**旧 commit**，不会用新代码！
+   - 必须用方案 2 推一个新 commit 才能触发新构建
+
 **只有以下情况需要手动操作：**
 | 场景 | 操作 |
 |---|---|
