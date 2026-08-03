@@ -5,5 +5,12 @@
 # 线上密码请在 Cloudflare Pages 项目 → Settings → Environment variables 配置
 # （Production 和 Preview 环境都要配）
 
+# === 密码 ===
 ADMIN_PASSWORD=13544
 CREATE_PASSWORD=13542
+
+# === D1 绑定（本地开发需要）===
+# 本地 wrangler 需要知道 D1 数据库的 ID，格式：[database-name]
+# 替换为你在 Cloudflare 创建 D1 数据库时返回的 ID
+# 例如：werewolf-game = "abc123def-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+werewolf-game = "REPLACE_WITH_YOUR_LOCAL_D1_ID"

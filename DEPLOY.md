@@ -62,12 +62,10 @@ npx wrangler login      # 浏览器弹出授权页
 ```bash
 npx wrangler d1 create werewolf-game
 ```
-输出会有一行 `database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"`，
-**把这个 id 填到 [wrangler.toml](./wrangler.toml)** 替换 `REPLACE_WITH_YOUR_D1_DATABASE_ID`，然后提交到 GitHub。
+输出会有一行 `database_id = "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"`。
 
-#### B2. 绑定到 Pages 项目
+#### B2. 绑定到 Pages 项目（线上）
 按方式 A 的 A2 步骤操作（网页上绑，Variable name 填 `DB`）。
-> 也可以命令行部署时自动绑，但 GitHub 集成部署需要在网页绑一次。
 
 #### B3. 导入表结构
 ```bash
