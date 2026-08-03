@@ -1,0 +1,17 @@
+name = "werewolf-game"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "dist"
+
+# 绑定 D1 数据库
+# 部署前请先创建数据库：wrangler d1 create werewolf-game
+# 然后把返回的 database_id 填到下方
+[[d1_databases]]
+binding = "DB"
+database_name = "werewolf-game"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# 密码不要写在这里（会进 git），用以下两种方式配置：
+# 1. 本地开发：复制 .dev.vars.example 为 .dev.vars，填入 ADMIN_PASSWORD / CREATE_PASSWORD
+# 2. 线上：Cloudflare Pages 项目 → Settings → Environment variables 添加
+#    - ADMIN_PASSWORD（进入进行中游戏的 host 视图）
+#    - CREATE_PASSWORD（创建新房间）

@@ -2,32 +2,47 @@
   <div class="home">
     <div class="container">
       <div class="header">
-        <h1 class="title">🐺 狼人杀</h1>
-        <p class="subtitle">多人在线推理游戏</p>
+        <h1>狼人杀</h1>
+        <p>多人在线推理游戏</p>
       </div>
-      
+
       <div class="card">
-        <h2 class="card-title">进入游戏</h2>
-        <div class="form-group">
-          <label class="form-label">秘钥</label>
-          <input 
-            v-model="form.key" 
-            type="text" 
-            placeholder="请输入6位玩家秘钥或管理员密码"
-            class="form-input"
-          />
-        </div>
+        <input 
+          v-model="form.key" 
+          type="text" 
+          placeholder="输入玩家秘钥或管理员秘钥"
+          class="form-input"
+          @keyup.enter="enterGame"
+        />
+        <div class="hint-text">输入管理员秘钥可进入正在进行中的游戏（以管理员视角）</div>
         <button 
           @click="enterGame" 
           :disabled="loading || !form.key"
-          class="action-btn primary-btn"
+          class="btn primary"
         >
-          {{ loading ? '进入中...' : '进入' }}
+          {{ loading ? '进入中...' : '进入游戏' }}
         </button>
       </div>
-      
+
       <div class="card">
-        <button @click="goCreate" class="action-btn success-btn">创建房间</button>
+        <button @click="showCreateModal = true" class="btn outline">开始游戏</button>
+      </div>
+    </div>
+
+    <div class="modal-overlay" v-if="showCreateModal" @click="showCreateModal = false">
+      <div class="modal-content" @click.stop>
+        <div class="modal-title">创建房间</div>
+        <input 
+          v-model="createPassword" 
+          type="password" 
+          placeholder="请输入密码"
+          class="form-input"
+          @keyup.enter="createRoom"
+        />
+        <div class="modal-actions">
+          <button class="btn" @click="showCreateModal = false">取消</button>
+          <button class="btn primary" @click="createRoom" :disabled="!createPassword">创建</button>
+        </div>
       </div>
     </div>
   </div>
@@ -36,11 +51,12 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from '../supabase'
+import { api } from '../api'
 
 const router = useRouter()
 const loading = ref(false)
-const ADMIN_PASSWORD = '13544'
+const showCreateModal = ref(false)
+const createPassword = ref('')
 
 const form = reactive({
   key: ''
@@ -48,47 +64,52 @@ const form = reactive({
 
 const enterGame = async () => {
   if (!form.key) return
-  
+
   loading.value = true
   try {
-    if (form.key === ADMIN_PASSWORD) {
-      const { data: rooms, error } = await supabase
-        .from('rooms')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-      
-      if (error || !rooms || rooms.length === 0) {
+    // 先尝试作为管理员密码校验
+    const authRes = await api.verifyAuth('admin', form.key)
+    if (authRes.valid) {
+      const res = await api.getLatestRoom(1)
+      const rooms = res?.data || []
+      if (rooms.length === 0) {
         alert('暂无房间，请先创建房间')
         return
       }
-      
-      router.push(`/host?room=${rooms[0].id}`)
+      router.push(`/host/${rooms[0].id}`)
       return
     }
-    
-    const { data: player, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('key', form.key)
-      .single()
-    
-    if (error || !player) {
-      alert('秘钥错误')
-      return
+
+    // 不是管理员密码，尝试作为玩家秘钥
+    try {
+      await api.getPlayerByKey(form.key)
+      router.push(`/game?key=${form.key}`)
+    } catch (err) {
+      if (err.status === 404) {
+        alert('秘钥错误')
+      } else {
+        alert('查询失败: ' + err.message)
+      }
     }
-    
-    router.push(`/game?key=${form.key}`)
   } catch (error) {
-    console.error('进入游戏失败:', error)
-    alert('网络错误，请检查网络连接或稍后重试')
+    alert('网络错误: ' + (error.message || '未知错误'))
   } finally {
     loading.value = false
   }
 }
 
-const goCreate = () => {
-  router.push('/create')
+const createRoom = async () => {
+  try {
+    const res = await api.verifyAuth('create', createPassword.value)
+    if (!res.valid) {
+      alert('密码错误')
+      return
+    }
+    showCreateModal.value = false
+    router.push('/create')
+  } catch (err) {
+    alert('验证失败: ' + err.message)
+  }
 }
 </script>
 
@@ -96,144 +117,132 @@ const goCreate = () => {
 .home {
   min-height: 100vh;
   padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .container {
   width: 100%;
-  max-width: 400px;
-  margin: 0 auto;
+  max-width: 360px;
 }
 
 .header {
   text-align: center;
   margin-bottom: 30px;
-  padding-top: 40px;
 }
 
-.title {
+.header h1 {
   font-size: 28px;
   color: #fff;
   margin-bottom: 8px;
-  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
 }
 
-.subtitle {
+.header p {
   font-size: 14px;
-  color: rgba(255, 255, 255, 0.7);
+  color: #999;
 }
 
 .card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
+  background: #242424;
+  border-radius: 8px;
   padding: 20px;
-  margin-bottom: 15px;
-}
-
-.card-title {
-  color: #fff;
-  margin-bottom: 18px;
-  font-size: 16px;
-  font-weight: bold;
-}
-
-.form-group {
-  margin-bottom: 16px;
-}
-
-.form-label {
-  display: block;
-  color: rgba(255, 255, 255, 0.8);
-  font-size: 14px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .form-input {
   width: 100%;
   height: 44px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.15);
+  padding: 0 12px;
+  border: 1px solid #333;
+  border-radius: 6px;
+  background: #1a1a1a;
   color: #fff;
   font-size: 16px;
   outline: none;
   box-sizing: border-box;
-}
-
-.form-input::placeholder {
-  color: rgba(255, 255, 255, 0.4);
+  margin-bottom: 12px;
 }
 
 .form-input:focus {
-  background: rgba(255, 255, 255, 0.25);
+  border-color: #409eff;
 }
 
-.action-btn {
+.form-input::placeholder {
+  color: #555;
+}
+
+.hint-text {
+  font-size: 12px;
+  color: #666;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.btn {
   width: 100%;
-  height: 50px;
+  height: 44px;
   border: none;
-  border-radius: 10px;
-  font-size: 17px;
-  font-weight: bold;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: background 0.2s;
 }
 
-.action-btn:active {
-  transform: scale(0.98);
-}
-
-.action-btn:disabled {
-  opacity: 0.6;
+.btn:disabled {
+  opacity: 0.5;
   cursor: not-allowed;
 }
 
-.primary-btn {
-  background: linear-gradient(135deg, #409eff, #667eea);
+.btn.primary {
+  background: #409eff;
   color: #fff;
 }
 
-.success-btn {
-  background: linear-gradient(135deg, #67c23a, #85ce61);
+.btn.outline {
+  background: transparent;
+  border: 1px solid #444;
   color: #fff;
 }
 
-@media (min-width: 768px) {
-  .home {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .header {
-    padding-top: 0;
-  }
-  
-  .title {
-    font-size: 40px;
-  }
-  
-  .subtitle {
-    font-size: 16px;
-  }
-  
-  .card {
-    padding: 28px;
-  }
-  
-  .card-title {
-    font-size: 18px;
-  }
-  
-  .form-input {
-    height: 48px;
-    font-size: 17px;
-  }
-  
-  .action-btn {
-    height: 52px;
-    font-size: 18px;
-  }
+.btn.outline:hover {
+  background: #333;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: #242424;
+  border-radius: 8px;
+  padding: 20px;
+  width: 300px;
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  text-align: center;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.modal-actions .btn {
+  flex: 1;
 }
 </style>

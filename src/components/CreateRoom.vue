@@ -1,68 +1,66 @@
 <template>
   <div class="create-room">
-    <div class="container">
-      <div class="header">
-        <h1 class="title">🐺 创建房间</h1>
-        <p class="subtitle">配置游戏角色</p>
+    <div class="header">
+      <h1>创建房间</h1>
+      <p>配置游戏角色</p>
+    </div>
+
+    <div class="panel">
+      <div class="form-group">
+        <label>创建密码</label>
+        <input type="password" v-model="form.password" placeholder="请输入密码" />
       </div>
-      
-      <div class="card">
-        <el-form :model="form" label-width="100px">
-          <el-form-item label="创建密码">
-            <el-input v-model="form.password" type="password" placeholder="请输入创建密码" />
-          </el-form-item>
-          
-          <div class="roles-section">
-            <h3 class="section-title">狼人阵营</h3>
-            <div class="roles-grid">
-              <div class="role-item" v-for="role in werewolfRoles" :key="role.id">
-                <span class="role-icon">{{ role.icon }}</span>
-                <span class="role-name">{{ role.name }}</span>
-                <el-input-number v-model="form.roles[role.id]" :min="0" :max="10" size="small" />
-              </div>
-            </div>
+
+      <div class="section">
+        <div class="section-title">狼人阵营</div>
+        <div class="roles-list">
+          <div class="role-item" v-for="role in werewolfRoles" :key="role.id">
+            <span class="role-icon">{{ role.icon }}</span>
+            <span class="role-name">{{ role.name }}</span>
+            <input type="number" v-model.number="form.roles[role.id]" min="0" max="10" />
           </div>
-          
-          <div class="roles-section">
-            <h3 class="section-title">神职阵营</h3>
-            <div class="roles-grid">
-              <div class="role-item" v-for="role in godRoles" :key="role.id">
-                <span class="role-icon">{{ role.icon }}</span>
-                <span class="role-name">{{ role.name }}</span>
-                <el-input-number v-model="form.roles[role.id]" :min="0" :max="10" size="small" />
-              </div>
-            </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">神职阵营</div>
+        <div class="roles-list">
+          <div class="role-item" v-for="role in godRoles" :key="role.id">
+            <span class="role-icon">{{ role.icon }}</span>
+            <span class="role-name">{{ role.name }}</span>
+            <input type="number" v-model.number="form.roles[role.id]" min="0" max="10" />
           </div>
-          
-          <div class="roles-section">
-            <h3 class="section-title">平民阵营</h3>
-            <div class="roles-grid">
-              <div class="role-item" v-for="role in villagerRoles" :key="role.id">
-                <span class="role-icon">{{ role.icon }}</span>
-                <span class="role-name">{{ role.name }}</span>
-                <el-input-number v-model="form.roles[role.id]" :min="0" :max="20" size="small" />
-              </div>
-            </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">平民阵营</div>
+        <div class="roles-list">
+          <div class="role-item" v-for="role in villagerRoles" :key="role.id">
+            <span class="role-icon">{{ role.icon }}</span>
+            <span class="role-name">{{ role.name }}</span>
+            <input type="number" v-model.number="form.roles[role.id]" min="0" max="20" />
           </div>
-          
-          <div class="total-players">
-            总人数: <span class="count">{{ totalPlayers }}</span>
-            <span v-if="totalPlayers < 3" class="warning">（至少需要3名玩家）</span>
-          </div>
-          
-          <div class="roles-section" v-if="false">
-            <h3 class="section-title">游戏规则</h3>
-            <div class="rule-item">
-              <el-checkbox v-model="form.witchSelfSave">女巫可以自救</el-checkbox>
-              <span class="rule-hint">（默认不允许自救）</span>
-            </div>
-          </div>
-          
-          <div class="button-group">
-            <el-button type="primary" @click="createRoom" :loading="loading" :disabled="totalPlayers < 3" class="action-btn">创建房间</el-button>
-            <el-button @click="goBack" class="action-btn">返回</el-button>
-          </div>
-        </el-form>
+        </div>
+      </div>
+
+      <div class="total-row">
+        <span>总人数</span>
+        <span class="total-num">{{ totalPlayers }}</span>
+        <span v-if="totalPlayers < 3" class="warning">至少3人</span>
+      </div>
+
+      <div class="section">
+        <div class="section-title">规则设置</div>
+        <div class="rule-item">
+          <input type="checkbox" v-model="form.witchSelfSave" />
+          <label>女巫可以自救</label>
+        </div>
+      </div>
+
+      <div class="btn-group">
+        <button class="btn primary" @click="createRoom" :disabled="totalPlayers < 3">创建房间</button>
+        <button class="btn" @click="goBack">返回</button>
       </div>
     </div>
   </div>
@@ -71,11 +69,9 @@
 <script setup>
 import { ref, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { supabase } from '../supabase'
+import { api } from '../api'
 
 const router = useRouter()
-const loading = ref(false)
-const CREATE_PASSWORD = '13542'
 
 const werewolfRoles = [
   { id: 'werewolf', name: '狼人', icon: '🐺', team: 'werewolf' },
@@ -119,17 +115,10 @@ const form = reactive({
   }
 })
 
-const totalPlayers = computed(() => {
-  return Object.values(form.roles).reduce((sum, val) => sum + val, 0)
-})
+const totalPlayers = computed(() => Object.values(form.roles).reduce((sum, val) => sum + val, 0))
 
-const generateRoomId = () => {
-  return Math.floor(100 + Math.random() * 900).toString()
-}
-
-const generatePlayerKey = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString()
-}
+const generateRoomId = () => Math.floor(100 + Math.random() * 900).toString()
+const generatePlayerKey = () => Math.floor(100000 + Math.random() * 900000).toString()
 
 const shuffleArray = (array) => {
   const shuffled = [...array]
@@ -145,19 +134,24 @@ const createRoom = async () => {
     alert('请输入创建密码')
     return
   }
-  
-  if (form.password !== CREATE_PASSWORD) {
-    alert('密码错误')
+
+  try {
+    const authRes = await api.verifyAuth('create', form.password)
+    if (!authRes.valid) {
+      alert('密码错误')
+      return
+    }
+  } catch (err) {
+    alert('密码验证失败: ' + err.message)
     return
   }
-  
-  loading.value = true
+
   try {
     const roomId = generateRoomId()
-    
+
     const roomData = {
       id: roomId,
-      current_day: 1,
+      current_day: 0,
       phase: 'waiting',
       pk_mode: 'normal',
       pk_targets: [],
@@ -167,31 +161,17 @@ const createRoom = async () => {
       night_countdown: 90,
       speech_timer: 0,
       speech_countdown: 120,
-      speech_active: false
+      speech_active: false,
+      witch_self_save: form.witchSelfSave
     }
-    
-    const { error: roomError } = await supabase.from('rooms').insert(roomData)
-    
-    if (roomError) {
-      if (roomError.code === '42703') {
-        console.warn('表结构不完整，尝试简化创建房间:', roomError.message)
-        const simpleRoomData = {
-          id: roomId,
-          current_day: 1,
-          phase: 'waiting',
-          pk_mode: 'normal',
-          pk_targets: [],
-          vote_timer: 0,
-          vote_countdown: 10,
-          night_timer: 0
-        }
-        const { error: simpleError } = await supabase.from('rooms').insert(simpleRoomData)
-        if (simpleError) throw simpleError
-      } else {
-        throw roomError
-      }
+
+    try {
+      await api.createRoom(roomData)
+    } catch (err) {
+      alert('创建房间失败：' + err.message)
+      return
     }
-    
+
     const rolesList = []
     werewolfRoles.concat(godRoles, villagerRoles).forEach(role => {
       for (let i = 0; i < form.roles[role.id]; i++) {
@@ -203,9 +183,9 @@ const createRoom = async () => {
         })
       }
     })
-    
+
     const shuffledRoles = shuffleArray(rolesList)
-    
+
     const players = shuffledRoles.map((role, index) => ({
       room_id: roomId,
       player_num: index + 1,
@@ -216,162 +196,185 @@ const createRoom = async () => {
       team: role.team,
       alive: true,
       has_voted: false,
-      vote_target: null
+      vote_target: null,
+      guard_last_night: false,
+      guard_last_target: null
     }))
-    
-    const { error: playersError } = await supabase.from('players').insert(players)
-    
-    if (playersError) throw playersError
-    
-    alert(`房间创建成功！\n房间号：${roomId}\n管理员密码：13544`)
+
+    try {
+      await api.insertPlayers(players)
+    } catch (err) {
+      await api.deleteRoom(roomId)
+      alert('创建玩家失败：' + err.message)
+      return
+    }
+
     router.push(`/host/${roomId}`)
   } catch (error) {
-    console.error('创建房间失败:', error)
-    alert('创建房间失败：' + error.message)
-  } finally {
-    loading.value = false
+    alert('创建失败：' + (error?.message || '未知错误'))
   }
 }
 
-const goBack = () => {
-  router.push('/')
-}
+const goBack = () => router.push('/')
 </script>
 
 <style scoped>
 .create-room {
   min-height: 100vh;
-  padding: 16px;
+  padding: 12px;
 }
 
 .container {
-  width: 100%;
   max-width: 600px;
   margin: 0 auto;
 }
 
 .header {
   text-align: center;
-  margin-bottom: 24px;
-}
-
-.title {
-  font-size: 28px;
-  color: #fff;
-  margin-bottom: 8px;
-  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
-}
-
-.subtitle {
-  font-size: 16px;
-  color: rgba(255, 255, 255, 0.7);
-}
-
-.card {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-radius: 16px;
-  padding: 24px;
-}
-
-.roles-section {
   margin-bottom: 20px;
 }
 
-.section-title {
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 12px;
-  font-size: 16px;
-  font-weight: bold;
+.header h1 {
+  font-size: 22px;
+  margin: 0 0 6px 0;
 }
 
-.roles-grid {
+.header p {
+  font-size: 13px;
+  color: #999;
+}
+
+.panel {
+  padding: 16px;
+  border-radius: 8px;
+  background: #242424;
+}
+
+.form-group {
+  margin-bottom: 14px;
+}
+
+.form-group label {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.form-group input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 0 10px;
+  font-size: 14px;
+  background: #1a1a1a;
+  color: #fff;
+}
+
+.section {
+  margin-bottom: 14px;
+}
+
+.section-title {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+
+.roles-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  justify-content: flex-start;
+  gap: 8px;
 }
 
 .role-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  background: rgba(255, 255, 255, 0.05);
-  padding: 10px 12px;
-  border-radius: 8px;
-  min-width: 140px;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #1a1a1a;
 }
 
 .role-icon {
-  font-size: 20px;
+  font-size: 16px;
 }
 
 .role-name {
-  color: #fff;
-  min-width: 45px;
-  font-size: 14px;
+  font-size: 13px;
+  min-width: 36px;
 }
 
-.total-players {
+.role-item input {
+  width: 45px;
+  height: 28px;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 0 4px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.8);
-  margin-bottom: 20px;
-  font-size: 18px;
+  font-size: 13px;
+  background: #242424;
+  color: #fff;
 }
 
-.total-players .count {
-  font-size: 28px;
+.total-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 6px;
+  background: rgba(64, 158, 255, 0.1);
+  margin-bottom: 14px;
+}
+
+.total-num {
+  font-size: 20px;
   font-weight: bold;
   color: #409eff;
 }
 
-.total-players .warning {
-    color: #f56c6c;
-    font-size: 14px;
-    display: block;
-    margin-top: 4px;
-  }
+.warning {
+  color: #f56c6c;
+  font-size: 11px;
+}
 
-  .rule-item {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 12px;
-    background: rgba(255, 255, 255, 0.05);
-    border-radius: 8px;
-  }
-
-  .rule-hint {
-    color: rgba(255, 255, 255, 0.5);
-    font-size: 12px;
-  }
-
-  .button-group {
+.rule-item {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border-radius: 6px;
+  background: #1a1a1a;
 }
 
-.action-btn {
+.btn-group {
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
   flex: 1;
-  height: 48px;
-  font-size: 16px;
+  height: 40px;
+  border: none;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-@media (min-width: 768px) {
-  .title {
-    font-size: 36px;
-  }
-  
-  .card {
-    padding: 32px;
-  }
-  
-  .role-item {
-    padding: 12px 16px;
-  }
-  
-  .role-name {
-    min-width: 50px;
-  }
+.btn.primary {
+  background: #409eff;
+  color: #fff;
+}
+
+.btn:not(.primary) {
+  background: #444;
+  color: #fff;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
