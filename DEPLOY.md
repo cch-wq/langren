@@ -16,30 +16,33 @@
 
 ### 方式 A：纯网页操作（推荐新手）
 
+> Cloudflare 后台有中文界面，菜单名下方用 `中文 / English` 标注。找不到时优先看中文。
+
 #### A1. 创建 D1 数据库
 1. 登录 https://dash.cloudflare.com/
-2. 左侧菜单 → **Workers & Pages** → 顶部切到 **D1** 标签
-3. 点 **Create database**
-4. Database name 填 `werewolf-game`，点 Create
-5. 创建后进入数据库详情页，**记下 Database ID**（一串字母数字，后面要用）
+2. 左侧菜单找 **存储和数据库** / **Storage & Databases** → 点 **D1 SQL 数据库** / **D1 SQL Database**
+   - 如果左侧没有这一项，改找 **计算和AI / Workers & Pages** → 顶部 **D1** 标签（旧版界面）
+3. 点 **创建数据库** / **Create database**
+4. 数据库名称填 `werewolf-game`，点创建
+5. 创建后进入数据库详情页，**记下数据库 ID** / **Database ID**（一串字母数字，后面要用）
 
 #### A2. 绑定到 Pages 项目
-1. 左侧菜单 → **Workers & Pages** → 找到你的 Pages 项目（`werewolf-game`）→ 点进去
-2. 顶部 **Settings** 标签 → 左侧 **Bindings**
-3. 点 **Add binding** → 选 **D1 database**
+1. 左侧菜单 **计算和AI** / **Workers & Pages** → 找到你的 Pages 项目（`werewolf-game`）→ 点进去
+2. 顶部 **设置** / **Settings** 标签 → 左侧 **绑定** / **Bindings**
+3. 点 **添加** / **Add** 按钮 → 选 **D1 数据库** / **D1 database**
 4. 填：
-   - **Variable name**：`DB` ← 必须是这个，代码里用的是这个名字
-   - **D1 database**：选刚才创建的 `werewolf-game`
-5. **Save**
+   - **变量名称** / **Variable name**：`DB` ← 必须是这个，代码里用的是这个名字
+   - **D1 数据库** / **D1 database**：选刚才创建的 `werewolf-game`
+5. **保存** / **Save**
 
 > 注意：Production 和 Preview 两个环境都要绑（页面顶部可切换）。否则预览部署会报错。
 
 #### A3. 导入表结构
-1. 回到 D1 数据库详情页（Workers & Pages → D1 → werewolf-game）
-2. 顶部 **Console** 标签
-3. 把 [d1-schema.sql](./d1-schema.sql) 的 **全部内容** 复制粘贴到输入框
-4. 点 **Execute**
-5. 执行完应该看到 6 张表创建成功，可以在 **Tables** 标签查看
+1. 回到 D1 数据库详情页（左侧 **存储和数据库 → D1 SQL 数据库 → werewolf-game**）
+2. 顶部 **控制台** / **Console** 标签
+3. 把 [d1-schema.sql](./d1-schema.sql) 的 **全部内容** 复制粘贴到 SQL 输入框
+4. 点 **执行** / **Execute**
+5. 执行完应该看到 6 张表创建成功，可以在 **表** / **Tables** 标签查看
 
 完成后数据库就准备好了。**以后改表结构，也是在这里粘贴 SQL 执行。**
 
