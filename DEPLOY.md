@@ -38,20 +38,15 @@
 > 注意：Production 和 Preview 两个环境都要绑（页面顶部可切换）。否则预览部署会报错。
 
 #### A3. 导入表结构
-> ⚠️ Cloudflare D1 后台新版界面移除了"控制台"功能，现在**必须通过命令行**执行 SQL。
+1. 回到 D1 数据库详情页（左侧 **存储和数据库 → D1 SQL 数据库 → werewolf-game**）
+2. 点击顶部的 **控制台** / **Console** 标签
+3. 页面底部有一个 SQL 查询输入框
+4. 打开 [d1-schema.sql](./d1-schema.sql) 的文件内容，**全部复制**
+5. 粘贴到控制台输入框里
+6. 点击右下角的 **执行** / **Execute** 按钮
+7. 页面上方提示 `Query successful` 即表示建表成功，可以在控制台输入 `/tables` 命令来验证表是否创建成功
 
-1. 本地打开项目目录 `c:\Users\86188\Desktop\game`
-2. 执行以下命令（已在 package.json 中配置好）：
-   ```bash
-   # 首次登录 Cloudflare
-   npx wrangler login
-   
-   # 执行建表（会把 d1-schema.sql 上传到云端数据库）
-   npm run db:init:remote
-   ```
-3. 如果 `npm run db:init:remote` 报错找不到数据库，说明在步骤 A1 没有配置好，请确认 `wrangler.toml` 里的 `database_id` 已填好。
-
-执行成功后数据库就准备好了。**以后改表结构，也是执行这条命令。**
+完成后数据库就准备好了。**以后改表结构，也是在这里执行新的 SQL。**
 
 ---
 
