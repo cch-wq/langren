@@ -1,4 +1,4 @@
-import { transformRoom, transformPlayer, json } from '../_helpers.js'
+import { transformRoom, transformPlayer, json } from '../../_helpers.js'
 
 // GET /api/game/:roomId
 // 一次性返回房间、玩家、投票、查验、每日行动、夜间行动

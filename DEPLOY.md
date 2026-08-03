@@ -141,22 +141,22 @@ npm run dev
 1. **检查分支控制配置**
    - Pages 项目 → Settings → Build & deployments → **分支控制** / **Branch control**
    - 确认 **生产分支** / **Production branch** 设置为 `main`
-   - 如果之前是 `main` 后来改了分支名，需要在这里改回来
 
-2. **手动触发一次部署**
-   - 最简单的方法：在项目目录执行一次空推送
+2. **查看部署日志**
+   - Pages 项目 → **部署** 标签 → 点击最新的失败部署 → **Details**
+   - 如果显示 `No deployment available`，说明构建失败
+   - 常见失败原因：
+     - **Import 路径错误**：Pages Functions 中 `import` 的相对路径必须正确
+     - **Node.js 版本问题**：Cloudflare Pages 默认用 Node.js 20，确保依赖兼容
+     - **构建命令错误**：确认 `npm run build` 能在本地成功
+
+3. **手动触发新部署**
+   - 如果部署失败后没有自动重试，推一个空 commit：
    ```bash
-   # 在项目目录执行
    git commit --allow-empty -m "触发重新部署"
    git push
    ```
-   这会产生一个空 commit，触发 Pages 重新构建。
-
-3. **如果还不行，手动重试**
-   - Pages 项目 → **部署** 标签
-   - 最新的部署 → 右侧 `...` → **重试部署**
-   - 但注意：重试部署用的是**旧 commit**，不会用新代码！
-   - 必须用方案 2 推一个新 commit 才能触发新构建
+   空 commit 会触发 Pages 重新构建。
 
 **只有以下情况需要手动操作：**
 | 场景 | 操作 |
